@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latch.js demo</title>
+    <style>
+      :root {
+        --bg: radial-gradient(circle at top left, #ffe8cc 0%, #fff8f0 40%, #edf6f9 100%);
+        --panel: rgba(255, 255, 255, 0.82);
+        --text: #22313f;
+        --muted: #5c6773;
+        --accent: #bc4b13;
+        --accent-2: #0f766e;
+        --border: rgba(34, 49, 63, 0.12);
+        --danger: #c92a2a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Iowan Old Style", serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      main {
+        width: min(78rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 2.5rem 0 5rem;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+        border: 1px solid var(--border);
+        border-radius: 1.5rem;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      }
+
+      .hero {
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+      }
+
+      .panel {
+        padding: 1.25rem;
+      }
+
+      .stack {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      h1 {
+        margin: 0.3rem 0 0.75rem;
+        font-size: clamp(2rem, 5vw, 4rem);
+        line-height: 0.95;
+      }
+
+      h2 {
+        margin: 0;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button,
+      .button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1.1rem;
+        background: linear-gradient(135deg, var(--accent), #ff922b);
+        color: white;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .ghost {
+        background: white;
+        color: var(--accent-2);
+        border: 1px solid rgba(15, 118, 110, 0.2);
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 0.75rem 0.9rem;
+        border-radius: 0.85rem;
+        border: 1px solid rgba(34, 49, 63, 0.15);
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .field-error {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 3px rgba(201, 42, 42, 0.12);
+      }
+
+      .error-text {
+        color: var(--danger);
+        min-height: 1.2rem;
+        font-size: 0.92rem;
+      }
+
+      .summary {
+        padding: 0.8rem 1rem;
+        border-radius: 1rem;
+        background: rgba(201, 42, 42, 0.08);
+        color: var(--danger);
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.7rem;
+        border-radius: 999px;
+        background: rgba(15, 118, 110, 0.1);
+        color: var(--accent-2);
+      }
+
+      [lt-dropdown-menu],
+      [lt-panel],
+      [lt-accordion-panel] {
+        margin-top: 0.5rem;
+        padding: 0.85rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(34, 49, 63, 0.08);
+      }
+
+      [lt-dropdown-menu] {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      [lt-dropdown-menu] .ghost {
+        justify-content: start;
+      }
+
+      [lt-tab][aria-selected="true"] {
+        background: linear-gradient(135deg, var(--accent-2), #2a9d8f);
+      }
+
+      [lt-accordion-trigger] {
+        width: 100%;
+        text-align: left;
+      }
+
+      #spinner {
+        color: var(--accent-2);
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero stack">
+        <span class="chip">Latch.js foundation</span>
+        <h1>Build dynamic apps from plain HTML.</h1>
+        <p class="muted">
+          This demo shows the current v0.1 to v0.3 slice: declarative requests, enhanced forms,
+          server error handling, local state and native UI primitives.
+        </p>
+      </section>
+
+      <div lt-toast-container></div>
+
+      <section class="grid">
+        <article class="panel stack" lt-state="{ open: false, count: 1, name: 'Latch', markup: '<strong>HTML state</strong>' }">
+          <h2>Local state</h2>
+          <p class="muted">Reactive state stays in the markup.</p>
+          <button lt-click="open = !open">Toggle details</button>
+          <div lt-show="open" class="stack">
+            <input lt-model="name" placeholder="Component label">
+            <button class="ghost" lt-click="count += 1">Increment</button>
+            <p>Preview: <span lt-text="`${name} x ${count}`"></span></p>
+            <div lt-html="markup"></div>
+            <p lt-if="count > 2">The conditional block is now visible.</p>
+          </div>
+        </article>
+
+        <article class="panel stack">
+          <h2>Declarative request</h2>
+          <p class="muted">Server HTML can swap directly into the page.</p>
+          <button
+            class="ghost"
+            lt-get="/fragment.html"
+            lt-target="#server-result"
+            lt-loading="Loading..."
+            lt-disabled-while="request"
+            lt-indicator="#spinner"
+            lt-toast-error="Request failed"
+          >
+            Load fragment
+          </button>
+          <span id="spinner" hidden>Loading...</span>
+          <div id="server-result">The swap target updates here.</div>
+        </article>
+
+        <article class="panel stack">
+          <h2>Enhanced form</h2>
+          <p class="muted">Browser validation, JSON server errors and reset-on-success are wired declaratively.</p>
+          <form
+            id="signup"
+            lt-form
+            lt-post="/users"
+            lt-error-target="#form-errors"
+            lt-error-class="field-error"
+            lt-reset-on-success
+            lt-toast-success="User created"
+            lt-dirty-check
+            class="stack"
+          >
+            <div id="form-errors" class="summary"></div>
+
+            <label class="stack">
+              <span>Name</span>
+              <input name="name" required>
+              <span data-latch-error-for="name" class="error-text"></span>
+            </label>
+
+            <label class="stack">
+              <span>Email</span>
+              <input name="email" type="email" required>
+              <span data-latch-error-for="email" class="error-text"></span>
+            </label>
+
+            <button type="submit">Create user</button>
+          </form>
+        </article>
+
+        <article class="panel stack">
+          <h2>Submit on change</h2>
+          <p class="muted">Form controls can submit automatically and serialize GET params.</p>
+          <form lt-form lt-get="/search" lt-submit-on-change lt-target="#search-results" class="stack">
+            <input name="q" value="latch" placeholder="Search term">
+            <select name="status">
+              <option value="draft">Draft</option>
+              <option value="active">Active</option>
+            </select>
+          </form>
+          <div id="search-results">Search results appear here.</div>
+        </article>
+
+        <article class="panel stack">
+          <h2>Dropdown and tabs</h2>
+          <div lt-dropdown>
+            <button lt-dropdown-trigger>Actions</button>
+            <div lt-dropdown-menu>
+              <button class="ghost" lt-toast="Draft saved">Save draft</button>
+              <button class="ghost" lt-toast="Share dialog would open">Share</button>
+            </div>
+          </div>
+
+          <div lt-tabs="profile" class="stack">
+            <div class="stack" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
+              <button lt-tab="profile">Profile</button>
+              <button lt-tab="settings">Settings</button>
+            </div>
+            <section lt-panel="profile">Server-first apps still need polished local UI patterns.</section>
+            <section lt-panel="settings">Tabs are managed declaratively without a separate controller file.</section>
+          </div>
+        </article>
+
+        <article class="panel stack">
+          <h2>Accordion and overlay</h2>
+          <div lt-accordion class="stack">
+            <button lt-accordion-trigger="one">What is Latch.js?</button>
+            <div lt-accordion-panel="one">A lightweight HTML-first layer for dynamic server-rendered apps.</div>
+            <button lt-accordion-trigger="two">Why local state?</button>
+            <div lt-accordion-panel="two">Because dropdowns, toggles and small calculations should not require a full SPA architecture.</div>
+          </div>
+          <button class="ghost" lt-modal="#example-modal">Open local modal</button>
+        </article>
+      </section>
+    </main>
+
+    <template id="example-modal">
+      <div class="stack">
+        <h2>Local modal</h2>
+        <p class="muted">The content is rescanned, focus is moved into the overlay, and focus returns when it closes.</p>
+        <button class="ghost" lt-close="modal">Close modal</button>
+      </div>
+    </template>
+
+    <script type="module">
+      import { Latch } from "/src/latch.ts";
+
+      window.fetch = async (url, options = {}) => {
+        const href = typeof url === "string" ? url : url.toString();
+
+        if (href.includes("/fragment.html")) {
+          return new Response(
+            '<section class="stack"><strong>Remote fragment loaded</strong><p>The injected HTML was swapped and rescanned automatically.</p></section>',
+            {
+              status: 200,
+              headers: {
+                "content-type": "text/html",
+                "X-Latch-Toast": "Fragment loaded",
+                "X-Latch-Toast-Type": "success"
+              }
+            }
+          );
+        }
+
+        if (href.includes("/search")) {
+          const query = new URL(href, window.location.href).searchParams;
+          return new Response(
+            `<p>Searching for <strong>${query.get("q")}</strong> with status <strong>${query.get("status")}</strong>.</p>`,
+            {
+              status: 200,
+              headers: {
+                "content-type": "text/html"
+              }
+            }
+          );
+        }
+
+        if (href.includes("/users") && options.method === "POST") {
+          const formData = options.body instanceof FormData ? options.body : new FormData();
+          const name = formData.get("name")?.toString().trim() || "";
+          const email = formData.get("email")?.toString().trim() || "";
+
+          if (!name || !email.includes("@")) {
+            return new Response(
+              JSON.stringify({
+                errors: {
+                  name: !name ? "Name is required" : undefined,
+                  email: !email.includes("@") ? "Email is invalid" : undefined
+                }
+              }),
+              {
+                status: 422,
+                headers: {
+                  "content-type": "application/json"
+                }
+              }
+            );
+          }
+
+          return new Response('<p class="chip">Server accepted the form and the form was reset.</p>', {
+            status: 200,
+            headers: {
+              "content-type": "text/html",
+              "X-Latch-Toast": "User created",
+              "X-Latch-Toast-Type": "success"
+            }
+          });
+        }
+
+        return new Response("Not found", { status: 404 });
+      };
+
+      Latch.start();
+    </script>
+  </body>
+</html>

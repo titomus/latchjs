@@ -1,0 +1,40 @@
+{
+  "name": "latchjs",
+  "version": "0.1.0",
+  "description": "HTML-first JavaScript library for server-rendered apps with local state and DOM swaps.",
+  "type": "module",
+  "main": "./dist/latch.js",
+  "module": "./dist/latch.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/latch.esm.js",
+      "default": "./dist/latch.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "test": "vitest run",
+    "dev": "vite examples/basic --host",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "html-first",
+    "server-rendered",
+    "dom",
+    "library",
+    "progressive-enhancement"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}
