@@ -45,6 +45,13 @@ export interface ModalOptions {
   side?: "left" | "right" | "top" | "bottom";
 }
 
+export interface ConfirmOptions {
+  title?: string;
+  confirmText?: string;
+  cancelText?: string;
+  tone?: "neutral" | "danger";
+}
+
 export interface LatchPlugin {
   name?: string;
   install: (app: LatchApp) => void;
@@ -71,6 +78,7 @@ export interface LatchApp {
   refresh(target: string | Element): Promise<void>;
   request(options: RequestOptions): Promise<Response>;
   toast(message: string, options?: ToastOptions): HTMLElement;
+  confirm(message: string, options?: ConfirmOptions): Promise<boolean>;
   modal(source: string, options?: ModalOptions): Promise<void>;
   drawer(source: string, options?: ModalOptions): Promise<void>;
   directive(name: string, installer: DirectiveInstaller): void;

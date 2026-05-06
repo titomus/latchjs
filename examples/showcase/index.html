@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latch.js showcase</title>
+    <style>
+      :root {
+        --bg: radial-gradient(circle at top left, #fbe4d8 0%, #fffaf4 36%, #eef6ff 100%);
+        --ink: #1f2d3d;
+        --muted: #61707f;
+        --line: rgba(31, 45, 61, 0.12);
+        --panel: rgba(255, 255, 255, 0.84);
+        --accent: #b84c17;
+        --accent-2: #0f766e;
+        --danger: #c92a2a;
+        --success: #2b8a3e;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Book Antiqua", Georgia, serif;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      main {
+        width: min(84rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 2rem 0 4rem;
+      }
+
+      .hero, .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 1.5rem;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      }
+
+      .hero {
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 1.5rem;
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+
+      .column {
+        display: grid;
+        gap: 1.5rem;
+      }
+
+      .panel {
+        padding: 1.2rem;
+      }
+
+      .stack { display: grid; gap: 0.8rem; }
+      .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+      h1 { margin: 0; font-size: clamp(2rem, 5vw, 4rem); line-height: 0.98; }
+      h2, h3, p { margin: 0; }
+      .muted { color: var(--muted); }
+
+      button, input, select, textarea, a.button {
+        font: inherit;
+      }
+
+      button, a.button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1.1rem;
+        background: linear-gradient(135deg, var(--accent), #f08c00);
+        color: white;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .ghost {
+        background: white;
+        color: var(--accent-2);
+        border: 1px solid rgba(15, 118, 110, 0.18);
+      }
+
+      .danger {
+        background: linear-gradient(135deg, #d6336c, #c92a2a);
+      }
+
+      input, select, textarea {
+        width: 100%;
+        padding: 0.75rem 0.9rem;
+        border-radius: 0.95rem;
+        border: 1px solid rgba(31, 45, 61, 0.15);
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .stats {
+        display: grid;
+        gap: 0.9rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .stat {
+        padding: 1rem;
+        border-radius: 1.2rem;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(31, 45, 61, 0.08);
+      }
+
+      .stat strong {
+        display: block;
+        font-size: 1.8rem;
+      }
+
+      .task-list, .team-list {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 32rem;
+      }
+
+      .data-table th,
+      .data-table td {
+        text-align: left;
+        padding: 0.8rem;
+        border-bottom: 1px solid rgba(31, 45, 61, 0.08);
+      }
+
+      .table-sort {
+        padding: 0.45rem 0.75rem;
+      }
+
+      .task-item, .team-card {
+        padding: 0.95rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(31, 45, 61, 0.08);
+      }
+
+      .task-item.done {
+        opacity: 0.72;
+      }
+
+      .task-item.done .title {
+        text-decoration: line-through;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(15, 118, 110, 0.12);
+        color: var(--accent-2);
+      }
+
+      .summary {
+        min-height: 2.5rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 1rem;
+        background: rgba(201, 42, 42, 0.08);
+        color: var(--danger);
+      }
+
+      .error-text {
+        min-height: 1.1rem;
+        color: var(--danger);
+        font-size: 0.9rem;
+      }
+
+      .field-error {
+        border-color: var(--danger);
+        box-shadow: 0 0 0 3px rgba(201, 42, 42, 0.1);
+      }
+
+      .mini-nav {
+        display: flex;
+        gap: 0.65rem;
+        flex-wrap: wrap;
+      }
+
+      .mini-nav a {
+        color: var(--accent-2);
+        text-decoration: none;
+      }
+
+      [lt-dropdown-menu], [lt-panel], [lt-accordion-panel] {
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(31, 45, 61, 0.08);
+        padding: 0.85rem;
+        margin-top: 0.45rem;
+      }
+
+      [lt-tab][aria-selected="true"] {
+        background: linear-gradient(135deg, var(--accent-2), #2a9d8f);
+      }
+
+      @media (max-width: 900px) {
+        .grid { grid-template-columns: 1fr; }
+        .stats { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <span class="pill">Latch.js showcase</span>
+        <h1>A small server-rendered workspace driven by HTML attributes.</h1>
+        <p class="muted">
+          This page talks to local mock endpoints through the actual Latch runtime. Use it to test swaps,
+          forms, headers, modal and drawer content, plus local UI primitives.
+        </p>
+        <nav class="mini-nav">
+          <a href="/examples/index.html">Examples hub</a>
+          <a href="/examples/basic/index.html">Foundation demo</a>
+        </nav>
+      </section>
+
+      <div lt-toast-container></div>
+      <button id="stats-refresh" hidden lt-get="/api/demo/stats" lt-target="#stats"></button>
+
+      <section class="grid">
+        <div class="column">
+          <article class="panel stack">
+            <div class="row" style="justify-content: space-between;">
+              <div class="stack">
+                <h2>Task board</h2>
+                <p class="muted">Create, toggle and delete tasks through HTML-first requests.</p>
+              </div>
+              <div class="row">
+                <button class="ghost" lt-modal="/api/demo/users/new">Invite teammate</button>
+                <button class="ghost" lt-drawer="/api/demo/users/1">Open drawer</button>
+              </div>
+            </div>
+
+            <div id="stats" class="stats"></div>
+
+            <form
+              class="stack"
+              lt-form
+              lt-post="/api/demo/tasks"
+              lt-target="#task-list"
+              lt-swap="beforeend"
+              lt-error-target="#task-errors"
+              lt-error-class="field-error"
+              lt-reset-on-success
+              lt-toast-success="Task added"
+            >
+              <div id="task-errors" class="summary"></div>
+              <div class="row">
+                <input name="title" placeholder="Ship keyboard shortcuts" required>
+                <select name="priority">
+                  <option value="high">High priority</option>
+                  <option value="medium">Medium priority</option>
+                  <option value="low">Low priority</option>
+                </select>
+              </div>
+              <button type="submit">Add task</button>
+            </form>
+
+            <div id="task-list" class="task-list" lt-get="/api/demo/tasks" lt-trigger="load" lt-target="#task-list"></div>
+          </article>
+
+          <article class="panel stack">
+            <h2>Catalog search</h2>
+            <p class="muted">`lt-submit-on-change` plus GET query serialization.</p>
+            <form lt-form lt-get="/api/demo/search" lt-submit-on-change lt-target="#search-results" class="stack">
+              <div class="row">
+                <input name="q" value="latch" placeholder="Search pattern">
+                <select name="status">
+                  <option value="all">All</option>
+                  <option value="ready">Ready</option>
+                  <option value="draft">Draft</option>
+                </select>
+              </div>
+            </form>
+            <div id="search-results" lt-get="/api/demo/search?q=latch&status=all" lt-trigger="load" lt-target="#search-results"></div>
+          </article>
+
+          <article class="panel stack" lt-table lt-source="/api/demo/releases" lt-target="#release-table" lt-sync-url lt-refresh-on="release:created">
+            <div class="row" style="justify-content: space-between;">
+              <div class="stack">
+                <h2>Release table</h2>
+                <p class="muted">Native search, filters, sorting, pagination and event-driven refresh.</p>
+              </div>
+              <button class="ghost" lt-emit="release:created" lt-toast="Release table refreshed">Emit refresh event</button>
+            </div>
+            <div class="row">
+              <input lt-table-search placeholder="Search a release or owner">
+              <select lt-table-filter="stage">
+                <option value="">All stages</option>
+                <option value="draft">Draft</option>
+                <option value="review">Review</option>
+                <option value="ready">Ready</option>
+              </select>
+            </div>
+            <div id="release-table"></div>
+          </article>
+        </div>
+
+        <div class="column">
+          <article class="panel stack">
+            <h2>Team list</h2>
+            <p class="muted">Remote modal form closes via headers and appends a server-rendered card.</p>
+            <div id="team-list" class="team-list" lt-get="/api/demo/team" lt-trigger="load" lt-target="#team-list"></div>
+          </article>
+
+          <article class="panel stack">
+            <h2>Local UI primitives</h2>
+            <div lt-dropdown>
+              <button lt-dropdown-trigger>Quick actions</button>
+              <div lt-dropdown-menu>
+                <button class="ghost" lt-toast="Filters applied locally">Trigger toast</button>
+                <button class="ghost" lt-modal="/api/demo/users/new">Open remote modal</button>
+              </div>
+            </div>
+
+            <div lt-tabs="events" class="stack">
+              <div class="row">
+                <button lt-tab="events">Events</button>
+                <button lt-tab="state">State</button>
+              </div>
+              <section lt-panel="events">Server responses can push `X-Latch-Toast`, `X-Latch-Close` and `X-Latch-Refresh`.</section>
+              <section lt-panel="state">Small local interactions still live in HTML rather than a client-side app shell.</section>
+            </div>
+
+            <div lt-accordion class="stack">
+              <button lt-accordion-trigger="one">What should I test first?</button>
+              <div lt-accordion-panel="one">Create a task, toggle it, delete it, then invite a teammate from the modal.</div>
+              <button lt-accordion-trigger="two">What is server-driven here?</button>
+              <div lt-accordion-panel="two">Task rows, team cards, modal content, drawer content, search results and stats are all served by the mock backend.</div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script type="module">
+      import { Latch } from "/src/latch.ts";
+      Latch.start();
+      document.querySelector("#stats-refresh")?.dispatchEvent(new Event("click", { bubbles: true }));
+    </script>
+  </body>
+</html>

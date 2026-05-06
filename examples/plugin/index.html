@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latch.js plugin lab</title>
+    <style>
+      :root {
+        --bg: linear-gradient(140deg, #f3efe6 0%, #eef7ff 45%, #eef8f0 100%);
+        --ink: #203040;
+        --muted: #5f6b76;
+        --line: rgba(32, 48, 64, 0.12);
+        --panel: rgba(255, 255, 255, 0.88);
+        --accent: #186a5e;
+        --accent-2: #bf4f24;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Palatino Linotype", Georgia, serif;
+      }
+
+      main {
+        width: min(70rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 2.5rem 0 4rem;
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      .hero, .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 1.5rem;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.07);
+      }
+
+      .hero, .panel { padding: 1.4rem; }
+      .stack { display: grid; gap: 0.85rem; }
+      .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 0.96; }
+      .muted { color: var(--muted); }
+
+      button, input, textarea {
+        font: inherit;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1rem;
+        background: linear-gradient(135deg, var(--accent), #2a9d8f);
+        color: white;
+        cursor: pointer;
+      }
+
+      .ghost {
+        background: white;
+        color: var(--accent-2);
+        border: 1px solid rgba(191, 79, 36, 0.15);
+      }
+
+      input, textarea {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(32, 48, 64, 0.14);
+        background: rgba(255, 255, 255, 0.92);
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(24, 106, 94, 0.12);
+        color: var(--accent);
+      }
+
+      .log {
+        min-height: 3rem;
+        padding: 0.95rem;
+        border-radius: 1rem;
+        background: rgba(32, 48, 64, 0.04);
+        border: 1px solid rgba(32, 48, 64, 0.08);
+      }
+
+      pre {
+        margin: 0;
+        padding: 1rem;
+        border-radius: 1rem;
+        overflow: auto;
+        background: #17212b;
+        color: #f8fafc;
+        font: 500 0.9rem/1.5 Consolas, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero stack">
+        <span class="badge">Plugin lab</span>
+        <h1>Custom directives can plug into state, events and toast flows.</h1>
+        <p class="muted">
+          This page registers a tiny plugin with two directives. One autofocuses the first field. The other emits
+          a typed event, stores the last action and raises a toast without changing the core runtime.
+        </p>
+        <div class="row">
+          <a class="ghost" href="/examples/index.html" style="text-decoration:none;padding:0.8rem 1rem;border-radius:999px;display:inline-flex;">Back to examples</a>
+        </div>
+      </section>
+
+      <section class="panel stack" lt-state="{ lastAction: 'none' }">
+        <div class="stack">
+          <h2>Plugin-driven command deck</h2>
+          <p class="muted">The `lt-focus` and `lt-command` directives below come from a plugin registered in this page.</p>
+        </div>
+
+        <label class="stack">
+          <span>Command note</span>
+          <input lt-focus="immediate" placeholder="The plugin autofocuses this field on load">
+        </label>
+
+        <div class="row">
+          <button lt-command="archive sprint">Archive sprint</button>
+          <button lt-command="publish changelog">Publish changelog</button>
+          <button class="ghost" lt-command="notify reviewers">Notify reviewers</button>
+        </div>
+
+        <div class="log stack" lt-on="plugin:command -> lastAction = $event.detail.value">
+          <strong>Last plugin event</strong>
+          <span lt-text="lastAction"></span>
+        </div>
+      </section>
+
+      <section class="panel stack">
+        <h2>Plugin source</h2>
+        <pre>Latch.plugin((app) =&gt; {
+  app.directive("focus", ({ el, value }) =&gt; {
+    if (value === "immediate") {
+      queueMicrotask(() =&gt; el.focus());
+    }
+  });
+
+  app.directive("command", ({ el, value, app }) =&gt; {
+    el.addEventListener("click", () =&gt; {
+      app.store("plugin:lastAction", value);
+      app.toast(`Plugin command: ${value}`, { type: "info" });
+      app.emit("plugin:command", { value });
+    });
+  });
+});</pre>
+      </section>
+    </main>
+
+    <script type="module">
+      import { Latch } from "/src/latch.ts";
+
+      Latch.plugin((app) => {
+        app.directive("focus", ({ el, value }) => {
+          if (value === "immediate") {
+            queueMicrotask(() => el.focus());
+          }
+        });
+
+        app.directive("command", ({ el, value, app: runtime }) => {
+          if (el.dataset.pluginBound === "true") {
+            return;
+          }
+
+          el.dataset.pluginBound = "true";
+          el.addEventListener("click", () => {
+            runtime.store("plugin:lastAction", value);
+            runtime.toast(`Plugin command: ${value}`, { type: "info" });
+            runtime.emit("plugin:command", { value });
+          });
+        });
+      });
+
+      Latch.start();
+    </script>
+  </body>
+</html>

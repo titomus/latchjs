@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latch.js examples</title>
+    <style>
+      :root {
+        --bg: linear-gradient(135deg, #fef6e4 0%, #f3f7ff 55%, #edf7f1 100%);
+        --ink: #203040;
+        --muted: #5f6b76;
+        --line: rgba(32, 48, 64, 0.12);
+        --accent: #bf4f24;
+        --accent-2: #186a5e;
+        --panel: rgba(255, 255, 255, 0.84);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Palatino Linotype", Georgia, serif;
+      }
+
+      main {
+        width: min(74rem, calc(100vw - 2rem));
+        margin: 0 auto;
+        padding: 3rem 0 4rem;
+      }
+
+      .hero, .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 1.5rem;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 20px 50px rgba(15, 23, 42, 0.07);
+      }
+
+      .hero {
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+      }
+
+      .card {
+        padding: 1.2rem;
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      h1 {
+        margin: 0.25rem 0 0.75rem;
+        font-size: clamp(2.1rem, 5vw, 4.4rem);
+        line-height: 0.95;
+      }
+
+      h2, p { margin: 0; }
+      .muted { color: var(--muted); }
+
+      a.button {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 2.9rem;
+        padding: 0.85rem 1rem;
+        border-radius: 999px;
+        text-decoration: none;
+        color: white;
+        background: linear-gradient(135deg, var(--accent), #ee9b00);
+      }
+
+      a.secondary {
+        background: white;
+        color: var(--accent-2);
+        border: 1px solid rgba(24, 106, 94, 0.18);
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 1.1rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <p>Latch.js examples</p>
+        <h1>HTML-first flows you can actually click through.</h1>
+        <p class="muted">
+          This local examples hub is served by Vite with mock endpoints, so requests, headers, swaps,
+          forms, modals, drawers and local state run against a real local server.
+        </p>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Showcase</h2>
+          <p class="muted">
+            A realistic mini SaaS page with tasks, stats, modal create flow, drawer details,
+            auto-submitting search and server-driven refresh headers.
+          </p>
+          <ul>
+            <li>real HTTP endpoints</li>
+            <li>POST, PATCH and DELETE flows</li>
+            <li>headers like X-Latch-Toast and X-Latch-Refresh</li>
+          </ul>
+          <a class="button" href="/examples/showcase/index.html">Open showcase</a>
+        </article>
+
+        <article class="card">
+          <h2>Foundation demo</h2>
+          <p class="muted">
+            The original v0.1 to v0.3 page with local state, enhanced forms, dropdowns, tabs,
+            accordion and a local modal.
+          </p>
+          <ul>
+            <li>component primitives</li>
+            <li>JSON field errors</li>
+            <li>inline state examples</li>
+          </ul>
+          <a class="button secondary" href="/examples/basic/index.html">Open foundation demo</a>
+        </article>
+
+        <article class="card">
+          <h2>Plugin lab</h2>
+          <p class="muted">
+            A small extension sandbox showing custom directives emitting events, updating store state
+            and reusing native toast flows without touching the runtime core.
+          </p>
+          <ul>
+            <li>custom directive registration</li>
+            <li>plugin-driven events</li>
+            <li>runtime toast and store reuse</li>
+          </ul>
+          <a class="button" href="/examples/plugin/index.html">Open plugin lab</a>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

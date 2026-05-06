@@ -1,4 +1,5 @@
 import type {
+  ConfirmOptions,
   DirectiveInstaller,
   LatchApp,
   LatchConfig,
@@ -81,8 +82,7 @@ export class LatchRuntime implements LatchApp {
         : [target as HTMLElement];
 
     for (const el of elements) {
-      const clickEvent = new Event("click", { bubbles: true });
-      el.dispatchEvent(clickEvent);
+      el.dispatchEvent(new CustomEvent("latch:refresh"));
     }
   }
 
@@ -131,6 +131,10 @@ export class LatchRuntime implements LatchApp {
       kind: options.kind ?? "modal",
       side: options.side ?? "right"
     });
+  }
+
+  confirm(message: string, options: ConfirmOptions = {}): Promise<boolean> {
+    return openConfirmOverlay(this, message, options);
   }
 
   async drawer(source: string, options: ModalOptions = {}): Promise<void> {
@@ -185,6 +189,122 @@ function ensureToastContainer(): HTMLElement {
 
 const overlayFocus = new Map<string, HTMLElement>();
 
+async function openConfirmOverlay(
+  app: LatchRuntime,
+  message: string,
+  options: ConfirmOptions
+): Promise<boolean> {
+  app.closeOverlay("confirm");
+
+  const active = document.activeElement;
+
+  if (active instanceof HTMLElement) {
+    overlayFocus.set("confirm", active);
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.dataset.latchOverlay = "confirm";
+    overlay.style.cssText = [
+      "position: fixed",
+      "inset: 0",
+      "background: rgba(15,23,42,0.56)",
+      "display: grid",
+      "place-items: center",
+      "z-index: 9998"
+    ].join(";");
+
+    const panel = document.createElement("div");
+    panel.setAttribute("role", "alertdialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-labelledby", "latch-confirm-title");
+    panel.setAttribute("aria-describedby", "latch-confirm-message");
+    panel.style.cssText = [
+      "width: min(30rem, calc(100vw - 2rem))",
+      "background: white",
+      "border-radius: 1rem",
+      "padding: 1.25rem",
+      "display: grid",
+      "gap: 1rem",
+      "box-shadow: 0 24px 60px rgba(15,23,42,0.24)"
+    ].join(";");
+
+    const title = document.createElement("h2");
+    title.id = "latch-confirm-title";
+    title.textContent = options.title ?? "Confirm action";
+    title.style.cssText = "margin: 0; font: 600 1.125rem/1.3 system-ui, sans-serif; color: #111827";
+
+    const body = document.createElement("p");
+    body.id = "latch-confirm-message";
+    body.textContent = message;
+    body.style.cssText = "margin: 0; font: 400 0.95rem/1.5 system-ui, sans-serif; color: #374151";
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display: flex; justify-content: end; gap: 0.75rem; flex-wrap: wrap";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.textContent = options.cancelText ?? "Cancel";
+    cancelButton.style.cssText = [
+      "border: 1px solid rgba(17,24,39,0.12)",
+      "background: white",
+      "color: #0f766e",
+      "border-radius: 999px",
+      "padding: 0.7rem 1rem",
+      "cursor: pointer"
+    ].join(";");
+
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.textContent = options.confirmText ?? "Confirm";
+    confirmButton.style.cssText = [
+      "border: 0",
+      "background: " + (options.tone === "danger" ? "linear-gradient(135deg, #d6336c, #c92a2a)" : "linear-gradient(135deg, #0f766e, #2a9d8f)"),
+      "color: white",
+      "border-radius: 999px",
+      "padding: 0.7rem 1rem",
+      "cursor: pointer"
+    ].join(";");
+
+    const cleanup = (accepted: boolean) => {
+      overlay.remove();
+      const previous = overlayFocus.get("confirm");
+
+      if (previous?.isConnected) {
+        previous.focus();
+      }
+
+      overlayFocus.delete("confirm");
+      resolve(accepted);
+    };
+
+    cancelButton.addEventListener("click", () => cleanup(false));
+    confirmButton.addEventListener("click", () => cleanup(true));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        cleanup(false);
+      }
+    });
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cleanup(false);
+        return;
+      }
+
+      if (event.key === "Tab") {
+        trapOverlayFocus(panel, event);
+      }
+    });
+
+    actions.append(cancelButton, confirmButton);
+    panel.append(title, body, actions);
+    overlay.append(panel);
+    document.body.append(overlay);
+    confirmButton.focus();
+  });
+}
+
 async function openOverlay(
   app: LatchRuntime,
   source: string,
@@ -217,7 +337,7 @@ async function openOverlay(
   overlay.append(panel);
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
-      overlay.remove();
+      app.closeOverlay(options.kind);
     }
   });
 
@@ -225,11 +345,17 @@ async function openOverlay(
     "keydown",
     (event) => {
       if (event.key === "Escape") {
-        overlay.remove();
+        app.closeOverlay(options.kind);
       }
     },
     { once: true }
   );
+
+  overlay.addEventListener("keydown", (event) => {
+    if (event.key === "Tab") {
+      trapOverlayFocus(panel, event);
+    }
+  });
 
   document.body.append(overlay);
 
@@ -265,6 +391,39 @@ function focusOverlay(panel: HTMLElement): void {
 
   panel.tabIndex = -1;
   panel.focus();
+}
+
+function trapOverlayFocus(panel: HTMLElement, event: KeyboardEvent): void {
+  const focusable = getFocusableElements(panel);
+
+  if (focusable.length === 0) {
+    event.preventDefault();
+    panel.focus();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+
+  if (event.shiftKey && (active === first || active === panel)) {
+    event.preventDefault();
+    last.focus();
+    return;
+  }
+
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function getFocusableElements(panel: HTMLElement): HTMLElement[] {
+  return Array.from(
+    panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter((element) => !element.hidden && element.tabIndex >= 0);
 }
 
 function buildPanelStyle(kind: string, side: string): string {

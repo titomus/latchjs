@@ -29,7 +29,7 @@ The goal is to remove unnecessary frontend complexity for CRUD apps, internal to
 
 ## Current scope
 
-The project now covers the v0.1 to v0.3 foundation.
+The project now covers the original foundation plus the first orchestration, accessibility, and table slices needed for a broader v1.
 
 ### Request and swap core
 
@@ -75,6 +75,8 @@ The project now covers the v0.1 to v0.3 foundation.
 - `lt-on`, `lt-emit`
 - `Latch.request()`
 - `Latch.refresh()`
+- `Latch.confirm()`
+- `lt-refresh-on`
 - `Latch.store()`
 - `Latch.plugin()`
 
@@ -88,7 +90,19 @@ The project now covers the v0.1 to v0.3 foundation.
 - `lt-dropdown`
 - `lt-tabs`
 - `lt-accordion`
-- focus restore on modal or drawer close
+- focus restore and focus trap on modal or drawer close
+- keyboard navigation and ARIA wiring for dropdowns, tabs and accordion
+
+### Data tables
+
+- `lt-table`
+- `lt-source`
+- `lt-table-search`
+- `lt-table-filter`
+- `lt-table-sort`
+- `lt-table-page`
+- `lt-sync-url`
+- event-driven refresh through `lt-refresh-on`
 
 ## Installation
 
@@ -142,6 +156,23 @@ Latch.start();
   lt-emit="item:archived"
 >
   Archive
+</button>
+```
+
+### Native confirm dialog
+
+```html
+<button
+  lt-delete="/items/123"
+  lt-target="#item-123"
+  lt-swap="remove"
+  lt-confirm="Delete this item?"
+  lt-confirm-title="Delete item"
+  lt-confirm-confirm-text="Delete"
+  lt-confirm-cancel-text="Keep it"
+  lt-confirm-tone="danger"
+>
+  Delete
 </button>
 ```
 
@@ -208,9 +239,49 @@ Latch.start();
 </div>
 ```
 
+### Server-driven table
+
+```html
+<section
+  lt-table
+  lt-source="/admin/releases"
+  lt-target="#release-results"
+  lt-sync-url
+  lt-refresh-on="release:created release:updated"
+>
+  <input lt-table-search placeholder="Search release or owner">
+  <select lt-table-filter="stage">
+    <option value="">All stages</option>
+    <option value="draft">Draft</option>
+    <option value="review">Review</option>
+    <option value="ready">Ready</option>
+  </select>
+
+  <div id="release-results"></div>
+</section>
+```
+
+### Custom directive plugin
+
+```js
+import { Latch } from "latchjs";
+
+Latch.plugin((app) => {
+  app.directive("focus", ({ el, value }) => {
+    if (value === "immediate") {
+      queueMicrotask(() => el.focus());
+    }
+  });
+});
+
+Latch.start();
+```
+
 ## Demo
 
 A local demo page is available in `examples/basic/index.html`.
+
+The examples hub now includes a plugin lab showing custom directives connected to state, events and toasts.
 
 ## Public roadmap
 
@@ -250,7 +321,7 @@ Status: done in current foundation
 - multi-zone refresh strategy
 - more robust event-driven refresh behavior
 
-Status: partially started
+Status: foundation implemented
 
 ### v0.5 Native components
 
@@ -259,7 +330,7 @@ Status: partially started
 - better drawer transitions
 - polished toast themes and stacking behavior
 
-Status: in progress
+Status: accessibility substantially improved, polish still pending
 
 ### v0.6 Data tables
 
@@ -267,14 +338,14 @@ Status: in progress
 - URL sync
 - refresh-on-event patterns
 
-Status: not started
+Status: first built-in table shipped
 
 ### v0.7 Plugin system
 
 - directive extension API examples
 - plugin authoring guide
 
-Status: foundation ready, examples pending
+Status: foundation ready, runnable example shipped
 
 ### v1.0 Stabilization
 
@@ -285,7 +356,7 @@ Status: foundation ready, examples pending
 - security guide
 - production demos
 
-Status: not started
+Status: browser tests started
 
 ## Development
 
@@ -293,6 +364,7 @@ Status: not started
 npm install
 npm run typecheck
 npm run test
+npm run test:e2e
 npm run build
 ```
 

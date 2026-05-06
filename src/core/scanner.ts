@@ -7,6 +7,7 @@ interface ScannerApp {
   config: LatchConfig;
   emit(eventName: string, detail?: unknown): CustomEvent<unknown>;
   toast(message: string, options?: { type?: string }): HTMLElement;
+  confirm(message: string, options?: { title?: string; confirmText?: string; cancelText?: string; tone?: "neutral" | "danger" }): Promise<boolean>;
   refresh(target: string | Element): Promise<void>;
   request(options: RequestOptions): Promise<Response>;
   scan(root: ParentNode): void;
@@ -27,6 +28,20 @@ const initializedElements = new WeakSet<HTMLElement>();
 const dirtySnapshotByForm = new WeakMap<HTMLFormElement, string>();
 const requestAttributes = ["get", "post", "put", "patch", "delete"] as const;
 let beforeUnloadBound = false;
+const tableStateByRoot = new WeakMap<HTMLElement, TableState>();
+
+interface TableState {
+  root: HTMLElement;
+  source: string;
+  targetSelector: string;
+  searchTerm: string;
+  filters: Record<string, string>;
+  sort?: string;
+  order: "asc" | "desc";
+  page: number;
+  syncUrl: boolean;
+  refreshOn: string[];
+}
 
 export function scanTree(app: ScannerApp, root: ParentNode): void {
   app.emit("latch:beforeScan", { root });
@@ -111,6 +126,20 @@ function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
     el.getAttribute(attributeName(app.config.prefix, "trigger")) ?? defaultTriggerForElement(el, methodName);
   const triggers = parseTriggers(triggerValue);
   const runner = createRequestRunner(app, el, methodName);
+
+  el.addEventListener("latch:refresh", () => {
+    void runner();
+  });
+
+  const refreshOn = el.getAttribute(attributeName(app.config.prefix, "refresh-on"));
+
+  if (refreshOn) {
+    for (const eventName of refreshOn.split(/\s+/).filter(Boolean)) {
+      window.addEventListener(eventName, () => {
+        void runner();
+      });
+    }
+  }
 
   for (const trigger of triggers) {
     if (trigger.type === "load") {
@@ -329,6 +358,10 @@ function initializeEventDirectives(
 }
 
 function initializeNativeComponents(app: ScannerApp, el: HTMLElement): void {
+  if (el.hasAttribute(attributeName(app.config.prefix, "table"))) {
+    initializeTable(app, el);
+  }
+
   if (el.hasAttribute(attributeName(app.config.prefix, "dropdown"))) {
     initializeDropdown(app, el);
   }
@@ -362,8 +395,17 @@ function createRequestRunner(
     const confirmMessage = el.getAttribute(attributeName(app.config.prefix, "confirm"));
     const form = resolveAssociatedForm(el);
 
-    if (confirmMessage && !window.confirm(confirmMessage)) {
-      return;
+    if (confirmMessage) {
+      const accepted = await app.confirm(confirmMessage, {
+        title: el.getAttribute(attributeName(app.config.prefix, "confirm-title")) ?? undefined,
+        confirmText: el.getAttribute(attributeName(app.config.prefix, "confirm-confirm-text")) ?? undefined,
+        cancelText: el.getAttribute(attributeName(app.config.prefix, "confirm-cancel-text")) ?? undefined,
+        tone: el.getAttribute(attributeName(app.config.prefix, "confirm-tone")) === "danger" ? "danger" : "neutral"
+      });
+
+      if (!accepted) {
+        return;
+      }
     }
 
     if (form && !validateForm(form)) {
@@ -938,22 +980,107 @@ function initializeDropdown(app: ScannerApp, root: HTMLElement): void {
   }
 
   menu.hidden = true;
+  menu.setAttribute("role", "menu");
   trigger.setAttribute("aria-haspopup", "menu");
   trigger.setAttribute("aria-expanded", "false");
   const menuId = menu.id || `latch-dropdown-${Math.random().toString(36).slice(2)}`;
   menu.id = menuId;
   trigger.setAttribute("aria-controls", menuId);
 
-  const close = () => {
+  const getItems = () => Array.from(
+    menu.querySelectorAll<HTMLElement>('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')
+  );
+
+  getItems().forEach((item) => {
+    item.setAttribute("role", item.getAttribute("role") || "menuitem");
+    item.tabIndex = -1;
+  });
+
+  const close = (restoreFocus = false) => {
     menu.hidden = true;
     trigger.setAttribute("aria-expanded", "false");
+
+    if (restoreFocus) {
+      trigger.focus();
+    }
+  };
+
+  const focusItem = (index: number) => {
+    const items = getItems();
+
+    if (items.length === 0) {
+      return;
+    }
+
+    const nextIndex = (index + items.length) % items.length;
+    items.forEach((item) => {
+      item.tabIndex = -1;
+    });
+    items[nextIndex].tabIndex = 0;
+    items[nextIndex].focus();
+  };
+
+  const open = (focusIndex = 0) => {
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    focusItem(focusIndex);
   };
 
   trigger.addEventListener("click", (event) => {
     event.stopPropagation();
-    const nextOpen = menu.hidden;
-    menu.hidden = !nextOpen;
-    trigger.setAttribute("aria-expanded", String(nextOpen));
+    if (menu.hidden) {
+      open(0);
+      return;
+    }
+
+    close(true);
+  });
+
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      open(0);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      open(getItems().length - 1);
+    }
+  });
+
+  menu.addEventListener("keydown", (event) => {
+    const items = getItems();
+    const activeIndex = items.findIndex((item) => item === document.activeElement);
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close(true);
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusItem(activeIndex + 1);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusItem(activeIndex - 1);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusItem(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      focusItem(items.length - 1);
+    }
   });
 
   document.addEventListener("click", (event) => {
@@ -964,7 +1091,7 @@ function initializeDropdown(app: ScannerApp, root: HTMLElement): void {
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      close();
+      close(true);
     }
   });
 }
@@ -982,19 +1109,34 @@ function initializeTabs(app: ScannerApp, root: HTMLElement): void {
     || tabs[0].getAttribute(attributeName(app.config.prefix, "tab"))
     || "";
 
+  tabs.forEach((tab, index) => {
+    const name = tab.getAttribute(attributeName(app.config.prefix, "tab")) ?? `tab-${index}`;
+    const panel = panels.find((entry) => entry.getAttribute(attributeName(app.config.prefix, "panel")) === name);
+    const tabId = tab.id || `latch-tab-${name}-${Math.random().toString(36).slice(2)}`;
+    const panelId = panel?.id || `latch-panel-${name}-${Math.random().toString(36).slice(2)}`;
+
+    tab.id = tabId;
+    tab.setAttribute("role", "tab");
+
+    if (panel) {
+      panel.id = panelId;
+      tab.setAttribute("aria-controls", panelId);
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", tabId);
+    }
+  });
+
   const activate = (name: string) => {
     root.dataset.latchActiveTab = name;
 
     for (const tab of tabs) {
       const selected = tab.getAttribute(attributeName(app.config.prefix, "tab")) === name;
-      tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", String(selected));
       tab.tabIndex = selected ? 0 : -1;
     }
 
     for (const panel of panels) {
       const selected = panel.getAttribute(attributeName(app.config.prefix, "panel")) === name;
-      panel.setAttribute("role", "tabpanel");
       panel.hidden = !selected;
     }
   };
@@ -1005,6 +1147,56 @@ function initializeTabs(app: ScannerApp, root: HTMLElement): void {
 
       if (name) {
         activate(name);
+      }
+    });
+
+    tab.addEventListener("keydown", (event) => {
+      const currentIndex = tabs.indexOf(tab);
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const next = tabs[(currentIndex + 1) % tabs.length];
+        const name = next.getAttribute(attributeName(app.config.prefix, "tab"));
+
+        if (name) {
+          activate(name);
+          next.focus();
+        }
+        return;
+      }
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const next = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+        const name = next.getAttribute(attributeName(app.config.prefix, "tab"));
+
+        if (name) {
+          activate(name);
+          next.focus();
+        }
+        return;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        const name = tabs[0].getAttribute(attributeName(app.config.prefix, "tab"));
+
+        if (name) {
+          activate(name);
+          tabs[0].focus();
+        }
+        return;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        const last = tabs[tabs.length - 1];
+        const name = last.getAttribute(attributeName(app.config.prefix, "tab"));
+
+        if (name) {
+          activate(name);
+          last.focus();
+        }
       }
     });
   }
@@ -1021,6 +1213,22 @@ function initializeAccordion(app: ScannerApp, root: HTMLElement): void {
   }
 
   const multiple = root.getAttribute(attributeName(app.config.prefix, "accordion")) === "multiple";
+
+  triggers.forEach((trigger, index) => {
+    const name = trigger.getAttribute(attributeName(app.config.prefix, "accordion-trigger")) ?? `section-${index}`;
+    const panel = panels.find((entry) => entry.getAttribute(attributeName(app.config.prefix, "accordion-panel")) === name);
+    const triggerId = trigger.id || `latch-accordion-trigger-${name}-${Math.random().toString(36).slice(2)}`;
+    const panelId = panel?.id || `latch-accordion-panel-${name}-${Math.random().toString(36).slice(2)}`;
+
+    trigger.id = triggerId;
+
+    if (panel) {
+      panel.id = panelId;
+      trigger.setAttribute("aria-controls", panelId);
+      panel.setAttribute("role", "region");
+      panel.setAttribute("aria-labelledby", triggerId);
+    }
+  });
 
   const setOpen = (name: string) => {
     for (const panel of panels) {
@@ -1057,6 +1265,235 @@ function initializeAccordion(app: ScannerApp, root: HTMLElement): void {
         setOpen(name);
       }
     });
+
+    trigger.addEventListener("keydown", (event) => {
+      const currentIndex = triggers.indexOf(trigger);
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        triggers[(currentIndex + 1) % triggers.length].focus();
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        triggers[(currentIndex - 1 + triggers.length) % triggers.length].focus();
+        return;
+      }
+
+      if (event.key === "Home") {
+        event.preventDefault();
+        triggers[0].focus();
+        return;
+      }
+
+      if (event.key === "End") {
+        event.preventDefault();
+        triggers[triggers.length - 1].focus();
+      }
+    });
+  }
+}
+
+function initializeTable(app: ScannerApp, root: HTMLElement): void {
+  if (tableStateByRoot.has(root)) {
+    return;
+  }
+
+  const source = root.getAttribute(attributeName(app.config.prefix, "source"));
+  const targetSelector = root.getAttribute(attributeName(app.config.prefix, "target"));
+
+  if (!source || !targetSelector) {
+    return;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const state: TableState = {
+    root,
+    source,
+    targetSelector,
+    searchTerm: searchParams.get("q") ?? "",
+    filters: {},
+    sort: searchParams.get("sort") ?? undefined,
+    order: searchParams.get("order") === "desc" ? "desc" : "asc",
+    page: Number(searchParams.get("page") ?? "1") || 1,
+    syncUrl: root.hasAttribute(attributeName(app.config.prefix, "sync-url")),
+    refreshOn: (root.getAttribute(attributeName(app.config.prefix, "refresh-on")) ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+  };
+
+  tableStateByRoot.set(root, state);
+
+  for (const field of Array.from(root.querySelectorAll<HTMLElement>(`[${attributeName(app.config.prefix, "table-filter")}]`))) {
+    const key = field.getAttribute(attributeName(app.config.prefix, "table-filter"));
+
+    if (!key || !isValueElement(field)) {
+      continue;
+    }
+
+    state.filters[key] = searchParams.get(key) ?? field.value ?? "";
+    field.value = state.filters[key];
+    field.addEventListener("change", () => {
+      state.filters[key] = field.value;
+      state.page = 1;
+      void loadTable(app, state);
+    });
+  }
+
+  const searchInputs = Array.from(root.querySelectorAll<HTMLElement>(`[${attributeName(app.config.prefix, "table-search")}]`));
+  const triggerSearch = debounce(() => {
+    state.page = 1;
+    void loadTable(app, state);
+  }, 250);
+
+  for (const field of searchInputs) {
+    if (!isValueElement(field)) {
+      continue;
+    }
+
+    field.value = state.searchTerm;
+    field.addEventListener("input", () => {
+      state.searchTerm = field.value;
+      triggerSearch();
+    });
+  }
+
+  root.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const sortControl = target?.closest<HTMLElement>(`[${attributeName(app.config.prefix, "table-sort")}]`);
+
+    if (sortControl) {
+      const sortKey = sortControl.getAttribute(attributeName(app.config.prefix, "table-sort"));
+
+      if (!sortKey) {
+        return;
+      }
+
+      if (state.sort === sortKey) {
+        state.order = state.order === "asc" ? "desc" : "asc";
+      } else {
+        state.sort = sortKey;
+        state.order = "asc";
+      }
+
+      state.page = 1;
+      void loadTable(app, state);
+      return;
+    }
+
+    const pageControl = target?.closest<HTMLElement>(`[${attributeName(app.config.prefix, "table-page")}]`);
+
+    if (!pageControl) {
+      return;
+    }
+
+    const pageValue = pageControl.getAttribute(attributeName(app.config.prefix, "table-page"));
+
+    if (!pageValue) {
+      return;
+    }
+
+    if (pageValue === "next") {
+      state.page += 1;
+    } else if (pageValue === "prev") {
+      state.page = Math.max(1, state.page - 1);
+    } else {
+      state.page = Math.max(1, Number(pageValue) || 1);
+    }
+
+    void loadTable(app, state);
+  });
+
+  for (const eventName of state.refreshOn) {
+    window.addEventListener(eventName, () => {
+      void loadTable(app, state);
+    });
+  }
+
+  root.addEventListener("latch:refresh", () => {
+    void loadTable(app, state);
+  });
+
+  void loadTable(app, state);
+}
+
+async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
+  const target = document.querySelector(state.targetSelector);
+
+  if (!target) {
+    return;
+  }
+
+  const url = new URL(state.source, window.location.href);
+
+  if (state.searchTerm) {
+    url.searchParams.set("q", state.searchTerm);
+  } else {
+    url.searchParams.delete("q");
+  }
+
+  for (const [key, value] of Object.entries(state.filters)) {
+    if (value) {
+      url.searchParams.set(key, value);
+    } else {
+      url.searchParams.delete(key);
+    }
+  }
+
+  if (state.sort) {
+    url.searchParams.set("sort", state.sort);
+    url.searchParams.set("order", state.order);
+  } else {
+    url.searchParams.delete("sort");
+    url.searchParams.delete("order");
+  }
+
+  if (state.page > 1) {
+    url.searchParams.set("page", String(state.page));
+  } else {
+    url.searchParams.delete("page");
+  }
+
+  if (state.syncUrl) {
+    window.history.replaceState({}, "", `${window.location.pathname}?${url.searchParams.toString()}`);
+  }
+
+  state.root.dataset.latchTableLoading = "true";
+
+  try {
+    const response = await app.request({
+      element: state.root,
+      method: "GET",
+      url: url.toString(),
+      target,
+      swap: "innerHTML"
+    });
+
+    if (!response.ok) {
+      app.emit("latch:requestError", {
+        element: state.root,
+        response
+      });
+      return;
+    }
+
+    await handleResponse(
+      {
+        emit: app.emit.bind(app),
+        config: app.config,
+        toast: app.toast.bind(app),
+        refresh: app.refresh.bind(app),
+        scan: (root) => app.scan(root),
+        closeOverlay: (kind) => app.closeOverlay(kind)
+      },
+      state.root,
+      response,
+      target,
+      "innerHTML"
+    );
+  } finally {
+    state.root.dataset.latchTableLoading = "false";
   }
 }
 

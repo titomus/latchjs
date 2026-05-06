@@ -137,11 +137,14 @@ describe("Latch", () => {
     expect(url).toContain("status=active");
   });
 
-  it("initializes dropdown and tabs components", () => {
+  it("initializes dropdown and tabs components with keyboard accessibility", () => {
     document.body.innerHTML = `
       <div lt-dropdown>
         <button id="trigger" lt-dropdown-trigger>Actions</button>
-        <div id="menu" lt-dropdown-menu>Menu</div>
+        <div id="menu" lt-dropdown-menu>
+          <button id="item-edit">Edit</button>
+          <button id="item-delete">Delete</button>
+        </div>
       </div>
 
       <div lt-tabs="profile">
@@ -150,21 +153,241 @@ describe("Latch", () => {
         <section id="panel-profile" lt-panel="profile">P1</section>
         <section id="panel-settings" lt-panel="settings">P2</section>
       </div>
+
+      <div lt-accordion>
+        <button id="acc-one" lt-accordion-trigger="one">One</button>
+        <div id="acc-panel-one" lt-accordion-panel="one">A1</div>
+        <button id="acc-two" lt-accordion-trigger="two">Two</button>
+        <div id="acc-panel-two" lt-accordion-panel="two">A2</div>
+      </div>
     `;
 
     Latch.start();
 
     const menu = document.querySelector("#menu") as HTMLElement;
     expect(menu.hidden).toBe(true);
+    expect((document.querySelector("#trigger") as HTMLButtonElement).getAttribute("aria-controls")).toBe("menu");
+    expect(menu.getAttribute("role")).toBe("menu");
 
-    (document.querySelector("#trigger") as HTMLButtonElement).click();
+    const trigger = document.querySelector("#trigger") as HTMLButtonElement;
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(menu.hidden).toBe(false);
+    expect(document.activeElement).toBe(document.querySelector("#item-edit"));
+
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement).toBe(document.querySelector("#item-delete"));
+
+    menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(trigger);
 
     expect((document.querySelector("#panel-profile") as HTMLElement).hidden).toBe(false);
     expect((document.querySelector("#panel-settings") as HTMLElement).hidden).toBe(true);
+    expect((document.querySelector("#tab-profile") as HTMLButtonElement).getAttribute("role")).toBe("tab");
+    expect((document.querySelector("#panel-profile") as HTMLElement).getAttribute("aria-labelledby")).toBe("tab-profile");
 
-    (document.querySelector("#tab-settings") as HTMLButtonElement).click();
+    const tabProfile = document.querySelector("#tab-profile") as HTMLButtonElement;
+    tabProfile.focus();
+    tabProfile.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
     expect((document.querySelector("#panel-profile") as HTMLElement).hidden).toBe(true);
     expect((document.querySelector("#panel-settings") as HTMLElement).hidden).toBe(false);
+    expect(document.activeElement).toBe(document.querySelector("#tab-settings"));
+
+    const accOne = document.querySelector("#acc-one") as HTMLButtonElement;
+    const accTwo = document.querySelector("#acc-two") as HTMLButtonElement;
+    expect(accOne.getAttribute("aria-controls")).toBe("acc-panel-one");
+    accOne.focus();
+    accOne.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    expect(document.activeElement).toBe(accTwo);
+  });
+
+  it("refreshes request elements through the runtime api", async () => {
+    document.body.innerHTML = `
+      <div id="feed" lt-get="/feed" lt-trigger="load" lt-target="#feed"></div>
+    `;
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("<p id='feed-state'>First</p>", {
+          status: 200,
+          headers: {
+            "content-type": "text/html"
+          }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response("<p id='feed-state'>Second</p>", {
+          status: 200,
+          headers: {
+            "content-type": "text/html"
+          }
+        })
+      );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    Latch.start();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#feed-state")?.textContent).toBe("First");
+    });
+
+    await Latch.refresh("#feed");
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#feed-state")?.textContent).toBe("Second");
+    });
+  });
+
+  it("loads and filters a native table component", async () => {
+    document.body.innerHTML = `
+      <section lt-table lt-source="/api/table" lt-target="#table-results" lt-sync-url>
+        <input id="table-search" lt-table-search placeholder="Search">
+        <select id="table-status" lt-table-filter="status">
+          <option value="">all</option>
+          <option value="open">open</option>
+        </select>
+        <button id="table-sort" lt-table-sort="name">Sort</button>
+        <div id="table-results"></div>
+      </section>
+    `;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url = new URL(rawUrl, "http://localhost/");
+      const q = url.searchParams.get("q") ?? "";
+      const status = url.searchParams.get("status") ?? "";
+      const sort = url.searchParams.get("sort") ?? "";
+      return new Response(
+        `<div id="table-payload">${q || "all"}|${status || "all"}|${sort || "none"}</div>`,
+        {
+          status: 200,
+          headers: {
+            "content-type": "text/html"
+          }
+        }
+      );
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    Latch.start();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#table-payload")?.textContent).toBe("all|all|none");
+    });
+
+    const search = document.querySelector("#table-search") as HTMLInputElement;
+    search.value = "alpha";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#table-payload")?.textContent).toContain("alpha");
+    });
+
+    const status = document.querySelector("#table-status") as HTMLSelectElement;
+    status.value = "open";
+    status.dispatchEvent(new Event("change", { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#table-payload")?.textContent).toContain("open");
+    });
+
+    (document.querySelector("#table-sort") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#table-payload")?.textContent).toContain("name");
+    });
+
+    expect(window.location.search).toContain("q=alpha");
+    expect(window.location.search).toContain("status=open");
+  });
+
+  it("blocks or continues requests through the native confirm dialog", async () => {
+    document.body.innerHTML = `
+      <button
+        id="destroy"
+        lt-delete="/items/1"
+        lt-target="#result"
+        lt-confirm="Delete this item?"
+        lt-confirm-title="Danger zone"
+        lt-confirm-confirm-text="Delete"
+      >
+        Delete
+      </button>
+      <div id="result"></div>
+    `;
+
+    const fetchMock = vi.fn(async () =>
+      new Response("<p id='confirm-result'>Deleted</p>", {
+        status: 200,
+        headers: {
+          "content-type": "text/html"
+        }
+      })
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    Latch.start();
+    (document.querySelector("#destroy") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("[data-latch-overlay='confirm']")).not.toBeNull();
+      expect(document.querySelector("#latch-confirm-title")?.textContent).toBe("Danger zone");
+    });
+
+    (Array.from(document.querySelectorAll("button")).find((button) => button.textContent === "Cancel") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("[data-latch-overlay='confirm']")).toBeNull();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    (document.querySelector("#destroy") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("[data-latch-overlay='confirm']")).not.toBeNull();
+    });
+
+    (Array.from(document.querySelectorAll("button")).find((button) => button.textContent === "Delete") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(document.querySelector("#confirm-result")?.textContent).toBe("Deleted");
+    });
+  });
+
+  it("runs custom directives registered through the plugin api", async () => {
+    document.body.innerHTML = `
+      <section lt-state="{ lastAction: 'none' }">
+        <button id="plugin-action" lt-test-command="archive sprint">Archive sprint</button>
+        <p id="plugin-state" lt-on="plugin:command -> lastAction = $event.detail.value">
+          <span id="plugin-value" lt-text="lastAction"></span>
+        </p>
+      </section>
+    `;
+
+    Latch.directive("test-command", ({ el, value, app }) => {
+      if (el.dataset.testCommandBound === "true") {
+        return;
+      }
+
+      el.dataset.testCommandBound = "true";
+      el.addEventListener("click", () => {
+        app.store("plugin:lastAction", value);
+        app.emit("plugin:command", { value });
+      });
+    });
+
+    Latch.start();
+    (document.querySelector("#plugin-action") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector("#plugin-value")?.textContent).toBe("archive sprint");
+      expect(Latch.store("plugin:lastAction")).toBe("archive sprint");
+    });
   });
 });

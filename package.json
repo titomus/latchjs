@@ -18,7 +18,10 @@
   "scripts": {
     "build": "tsup --config tsup.config.ts",
     "test": "vitest run",
-    "dev": "vite examples/basic --host",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "dev": "vite --host",
+    "dev:examples": "vite --host",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -31,6 +34,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.54.1",
     "jsdom": "^26.1.0",
     "tsup": "^8.3.5",
     "typescript": "^5.8.3",
