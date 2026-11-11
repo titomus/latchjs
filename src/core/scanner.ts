@@ -129,7 +129,23 @@ export function scanTree(app: ScannerApp, root: ParentNode): void {
 
 function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof getScope>): void {
   const initialized = initializedElements.has(el);
-  const stateExpression = el.getAttribute(attributeName(app.config.prefix, "state"));
+  // Most nodes in server-rendered fragments are plain presentation markup.
+  // Do not run every installer (30+ attribute checks) on those elements.
+  // A plain node is deliberately *not* marked initialized, allowing a later
+  // scan to pick up directives added by the application.
+  let hasDirectives = initialized;
+  if (!hasDirectives && el.hasAttributes()) {
+    const prefix = app.config.prefix + "-";
+    for (const attribute of Array.from(el.attributes)) {
+      if (attribute.name.startsWith(prefix)) {
+        hasDirectives = true;
+        break;
+      }
+    }
+  }
+  const stateExpression = hasDirectives
+    ? el.getAttribute(attributeName(app.config.prefix, "state"))
+    : null;
   // A swapped parent's rescan must reuse its scope: recreating it resets
   // local state and can even make the scope its own parent.
   const scope = initialized
@@ -146,10 +162,10 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof
     scope.notify();
   }
 
-  if (!initialized) {
+  if (!initialized && hasDirectives) {
     initializeElement(app, el, scope);
     initializedElements.add(el);
-  } else {
+  } else if (initialized) {
     // Restores subscriptions when a previously detached node is reinserted
     // and scanned again, without duplicating its element-local handlers.
     restoreExternal(el);
