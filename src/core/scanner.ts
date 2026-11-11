@@ -331,6 +331,56 @@ function initializeStateDirectives(
     return;
   }
 
+  // Initializers run once after the synchronous DOM scan, when descendants
+  // have already registered their bindings. They are not re-run on rescans.
+  const initExpression = el.getAttribute(attributeName(app.config.prefix, "init"));
+  if (initExpression) {
+    queueMicrotask(() => {
+      if (el.isConnected) {
+        runInScope(scope, initExpression, { $el: el, $store: app.stores });
+      }
+    });
+  }
+
+  // Alpine-like event bindings; modifiers remain explicit and per-element.
+  const onPrefix = attributeName(app.config.prefix, "on") + ":";
+  for (const attribute of el.getAttributeNames()) {
+    if (!attribute.startsWith(onPrefix)) continue;
+    const expression = el.getAttribute(attribute);
+    if (!expression) continue;
+    const parts = attribute.slice(onPrefix.length).split(".");
+    const eventName = parts.shift();
+    if (!eventName) continue;
+    const modifiers = new Set(parts);
+    const milliseconds = parts.find((part) => /^\\d+ms$/.test(part));
+    const debounceMs = modifiers.has("debounce") ? Math.max(0, Number(milliseconds?.slice(0, -2) ?? "250")) : 0;
+    let timer: number | undefined;
+    let fired = false;
+    const execute = (event: Event) => {
+      if (modifiers.has("self") && event.target !== el) return;
+      if (modifiers.has("once") && fired) return;
+      if (modifiers.has("prevent")) event.preventDefault();
+      if (modifiers.has("stop")) event.stopPropagation();
+      const invoke = () => {
+        if (!el.isConnected) return;
+        fired = true;
+        runInScope(scope, expression, { $event: event, $el: el, $store: app.stores });
+      };
+      if (debounceMs > 0) {
+        if (timer !== undefined) window.clearTimeout(timer);
+        timer = window.setTimeout(invoke, debounceMs);
+      } else {
+        invoke();
+      }
+    };
+    if (modifiers.has("window") || modifiers.has("document")) {
+      const target = modifiers.has("window") ? window : document;
+      listenExternal(el, target, eventName, execute);
+    } else {
+      el.addEventListener(eventName, execute);
+    }
+  }
+
   const clickExpression = el.getAttribute(attributeName(app.config.prefix, "click"));
 
   if (clickExpression) {
