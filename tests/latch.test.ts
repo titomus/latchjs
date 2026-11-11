@@ -534,4 +534,21 @@ describe("Latch", () => {
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   });
 
+  it("updates inherited state when a reactive subtree moves to a new parent", () => {
+    document.body.innerHTML = `
+      <div id="parent-a" lt-state="{outer:1}">
+        <div id="moved" lt-state="{count:2}">
+          <span id="moved-result" lt-text="outer + count"></span>
+        </div>
+      </div>
+      <div id="parent-b" lt-state="{outer:10}"></div>
+    `;
+    Latch.start();
+    expect(document.querySelector("#moved-result")?.textContent).toBe("3");
+    const moved = document.querySelector("#moved") as HTMLElement;
+    (document.querySelector("#parent-b") as HTMLElement).append(moved);
+    Latch.scan(moved);
+    expect(document.querySelector("#moved-result")?.textContent).toBe("12");
+  });
+
 });
