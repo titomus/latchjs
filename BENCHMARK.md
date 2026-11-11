@@ -50,6 +50,15 @@ python3 -m http.server 4180 --bind 127.0.0.1 --directory _site
 
 Open `http://127.0.0.1:4180/benchmark.html`. Download the JSON with samples and version metadata.
 
+## Automated baseline recording
+
+The GitHub pull-request CI runs a standard 250-binding, 20-update state benchmark and a 10-swap HTML benchmark in Chromium. Once both finish, it saves:
+
+- `test-results/**/attachments/comparison-samples*`: Playwright attachment with raw samples, medians, P95 and pinned versions.
+- `_site/benchmark-metadata.json`: measured minified, gzip and Brotli distribution sizes.
+
+Both are uploaded as a **30-day GitHub Actions artifact**, and a compact sample summary is printed in the job logs. GitHub-hosted runner variability means these figures should not become pass/fail performance thresholds until repeated baselines are established.
+
 ## Next benchmarks worth building
 
 A balanced CRUD application in FlightPHP with actual form submission, network mutations and table refresh, plus mobile throttling, retained heap after many swaps, and accessibility/functional completeness. Report performance together with feature parity and regression rate rather than only a single latency number.
