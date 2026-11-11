@@ -406,7 +406,7 @@ function initializeRepeat(
   parentScope: NonNullable<ReturnType<typeof getScope>>
 ): void {
   const raw = template.getAttribute(attributeName(app.config.prefix, "for")) ?? "";
-  const match = raw.match(/^\\s*(?:\\(\\s*([a-zA-Z_$][\\w$]*)\\s*(?:,\\s*([a-zA-Z_$][\\w$]*))?\\s*\\)|([a-zA-Z_$][\\w$]*))\\s+(?:in|of)\\s+(.+?)\\s*$/);
+  const match = raw.match(/^\s*(?:\(\s*([a-zA-Z_$][\w$]*)\s*(?:,\s*([a-zA-Z_$][\w$]*))?\s*\)|([a-zA-Z_$][\w$]*))\s+(?:in|of)\s+(.+?)\s*$/);
   if (!match) {
     app.emit("latch:repeatError", { template, error: "Expected 'item in items' or '(item, index) in items'" });
     return;
