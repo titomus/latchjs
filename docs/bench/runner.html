@@ -99,27 +99,88 @@
     }
     return Object.assign({rows:80,iterations:iterations,metric:"click → afterSwap (including HTTP)"},stats(times,initMs));
   }
+  async function combinedTest(options){
+    if(engine!=="latch"&&engine!=="combo")throw new Error("Combined workflow needs Latch or HTMX + Alpine");
+    var iterations=Math.min(20,Math.max(2,Number(options.iterations)||6));
+    var url=engine==="latch"?"../fixtures/combined-latch.html":"../fixtures/combined-combo.html";
+    var triggerHTML=engine==="latch"
+      ?'<button type="button" lt-get="'+url+'" lt-target="#workflow-target">Load workflow</button>'
+      :'<button type="button" hx-get="'+url+'" hx-target="#workflow-target" hx-swap="innerHTML swap:0ms settle:0ms">Load workflow</button>';
+    stage.innerHTML=triggerHTML+'<div id="workflow-target"></div>';
+    var trigger=stage.querySelector("button"), target=stage.querySelector("#workflow-target");
+    var initStart=timer();
+    if(engine==="latch")runtime().scan(stage);
+    else window.htmx.process(stage);
+    var initMs=timer()-initStart;
+    var times=[];
+    async function waitValue(expected){
+      var deadline=timer()+3000;
+      while(timer()<deadline){
+        var element=target.querySelector(".workflow-value");
+        if(element&&element.textContent.trim()===String(expected)&&target.querySelector(".workflow-inc"))return;
+        await new Promise(function(resolve){requestAnimationFrame(resolve);});
+      }
+      throw new Error("Workflow did not become interactive at count "+expected);
+    }
+    for(var i=0;i<iterations+2;i++){
+      target.innerHTML="";
+      var elapsed=await new Promise(function(resolve,reject){
+        var started=timer(),finished=false;
+        var name=engine==="latch"?"latch:afterSwap":"htmx:afterSwap";
+        var bus=engine==="latch"?window:document;
+        var timeout=setTimeout(function(){finish(new Error("Combined workflow timed out"));},11000);
+        function finish(error,ms){
+          if(finished)return;
+          finished=true;
+          clearTimeout(timeout);
+          bus.removeEventListener(name,listener);
+          if(error)reject(error);else resolve(ms);
+        }
+        async function listener(event){
+          if(engine==="latch"&&event.detail&&event.detail.element!==trigger)return;
+          if(engine==="combo"&&event.detail&&event.detail.elt!==target&&event.detail.target!==target)return;
+          if(!target.querySelector(".workflow-value"))return;
+          try{
+            await waitValue(0);
+            var inc=target.querySelector(".workflow-inc");
+            for(var n=1;n<=3;n++){inc.click();await waitValue(n);}
+            finish(null,timer()-started);
+          }catch(error){finish(error);}
+        }
+        bus.addEventListener(name,listener);
+        trigger.click();
+      });
+      if(i>=2)times.push(elapsed);
+    }
+    return Object.assign({iterations:iterations,metric:"server HTML to 3 working client actions"},stats(times,initMs));
+  }
   function receive(event){
     if(event.source!==window.parent||event.origin!==location.origin)return;
     var msg=event.data;
     if(!msg||msg.source!=="latch-benchmark-host"||!msg.id)return;
     currentRun=currentRun.then(async function(){
       if(!ready)throw new Error("Runtime still loading");
-      var result=msg.task==="state"?await stateTest(msg):await swapTest(msg);
+      var result=msg.task==="state"?await stateTest(msg):msg.task==="combined"?await combinedTest(msg):await swapTest(msg);
       send({id:msg.id,ok:true,task:msg.task,result:result});
     }).catch(function(error){
       send({id:msg.id,ok:false,task:msg.task,error:String(error&&error.message||error)});
     });
   }
   window.addEventListener("message",receive);
-  var script=document.createElement("script");
-  script.src=map[engine]||map.latch;
-  script.onload=function(){
-    if(engine==="latch"){var r=runtime();if(!r)throw Error("Latch unavailable");r.start();}
-    ready=true;
-    send({ready:true});
-  };
-  script.onerror=function(){send({ready:false,error:"Cannot load "+script.src});};
-  document.head.appendChild(script);
+  var libraries=engine==="combo"?
+    ["../vendor/htmx.min.js","../vendor/alpine.min.js"]:
+    [map[engine]||map.latch];
+  function loadLibrary(index){
+    if(index>=libraries.length){
+      if(engine==="latch"){var r=runtime();if(!r)throw Error("Latch unavailable");r.start();}
+      ready=true;send({ready:true});return;
+    }
+    var script=document.createElement("script");
+    script.src=libraries[index];
+    script.onload=function(){loadLibrary(index+1);};
+    script.onerror=function(){send({ready:false,error:"Cannot load "+script.src});};
+    document.head.appendChild(script);
+  }
+  loadLibrary(0);
 })();
 </script></body></html>
