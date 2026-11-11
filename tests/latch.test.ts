@@ -551,4 +551,24 @@ describe("Latch", () => {
     expect(document.querySelector("#moved-result")?.textContent).toBe("12");
   });
 
+  it("activates directives added later to previously plain HTML nodes", () => {
+    document.body.innerHTML = `
+      <div id="dynamic-scope">
+        <button id="dynamic-button">Increment</button>
+        <span id="dynamic-value">pending</span>
+      </div>
+    `;
+    Latch.start();
+    const host = document.querySelector("#dynamic-scope") as HTMLElement;
+    const button = document.querySelector("#dynamic-button") as HTMLElement;
+    const label = document.querySelector("#dynamic-value") as HTMLElement;
+    host.setAttribute("lt-state", "{ count: 0 }");
+    button.setAttribute("lt-click", "count += 1");
+    label.setAttribute("lt-text", "count");
+    Latch.scan(host);
+    expect(label.textContent).toBe("0");
+    button.click();
+    expect(label.textContent).toBe("1");
+  });
+
 });
