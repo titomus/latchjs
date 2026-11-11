@@ -54,7 +54,7 @@ Open `http://127.0.0.1:4180/benchmark.html`. Download the JSON with samples and 
 
 The GitHub pull-request CI runs a standard 250-binding, 20-update state benchmark and a 10-swap HTML benchmark in Chromium. Once both finish, it saves:
 
-- `benchmark-artifacts/comparison-samples.json`: raw samples, medians, P95 and pinned versions.
+- `test-results/**/attachments/comparison-samples*`: Playwright attachment with raw samples, medians, P95 and pinned versions.
 - `_site/benchmark-metadata.json`: measured minified, gzip and Brotli distribution sizes.
 
 Both are uploaded as a **30-day GitHub Actions artifact**, and a compact sample summary is printed in the job logs. GitHub-hosted runner variability means these figures should not become pass/fail performance thresholds until repeated baselines are established.
