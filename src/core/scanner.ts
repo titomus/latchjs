@@ -41,6 +41,8 @@ interface TableState {
   page: number;
   syncUrl: boolean;
   refreshOn: string[];
+  requestVersion: number;
+  activeRequest?: AbortController;
 }
 
 export function scanTree(app: ScannerApp, root: ParentNode): void {
@@ -401,6 +403,8 @@ function createRequestRunner(
   el: HTMLElement,
   explicitMethod?: typeof requestAttributes[number]
 ): (event?: Event) => Promise<void> {
+  let version = 0;
+  let activeGet: { controller: AbortController; version: number; restore: () => void } | undefined;
   return async () => {
     const confirmMessage = el.getAttribute(attributeName(app.config.prefix, "confirm"));
     const form = resolveAssociatedForm(el);
@@ -422,24 +426,39 @@ function createRequestRunner(
       return;
     }
 
+    const requestOptions = resolveRequestOptions(app, el, explicitMethod);
+    if (!requestOptions.url) return;
+    const useLatest = requestOptions.method === "GET";
+    let currentVersion = 0;
+    let controller: AbortController | undefined;
+    let restore: () => void;
+
+    if (useLatest) {
+      const existingRestore = activeGet?.restore;
+      activeGet?.controller.abort();
+      controller = new AbortController();
+      currentVersion = ++version;
+      restore = existingRestore ?? setLoadingState(el, true, app.config.prefix);
+      activeGet = { controller, version: currentVersion, restore };
+    } else {
+      restore = setLoadingState(el, true, app.config.prefix);
+    }
+
+    const stale = () => useLatest && currentVersion !== version;
     const errorTarget = resolveErrorTarget(app, el);
     clearServerErrors(app, el, form, errorTarget);
-    const restore = setLoadingState(el, true, app.config.prefix);
 
     try {
-      const requestOptions = resolveRequestOptions(app, el, explicitMethod);
-
-      if (!requestOptions.url) {
-        return;
-      }
-
       const response = await app.request({
         ...requestOptions,
-        element: el
+        element: el,
+        signal: controller?.signal
       });
+      if (stale()) return;
 
       if (!response.ok) {
         await handleServerError(app, el, form, errorTarget, response);
+        if (stale()) return;
 
         const errorToast = el.getAttribute(attributeName(app.config.prefix, "toast-error"));
 
@@ -469,6 +488,8 @@ function createRequestRunner(
         requestOptions.swap ?? app.config.defaultSwap
       );
 
+      if (stale()) return;
+
       const successToast = el.getAttribute(attributeName(app.config.prefix, "toast-success"));
 
       if (successToast) {
@@ -495,6 +516,7 @@ function createRequestRunner(
         app.closeOverlay(closeOnSuccess);
       }
     } catch (error) {
+      if (stale() || (error instanceof Error && error.name === "AbortError")) return;
       const errorToast = el.getAttribute(attributeName(app.config.prefix, "toast-error"));
 
       if (errorToast) {
@@ -506,7 +528,14 @@ function createRequestRunner(
         error
       });
     } finally {
-      restore();
+      if (useLatest) {
+        if (activeGet?.version === currentVersion) {
+          activeGet.restore();
+          activeGet = undefined;
+        }
+      } else {
+        restore();
+      }
     }
   };
 }
@@ -1330,7 +1359,8 @@ function initializeTable(app: ScannerApp, root: HTMLElement): void {
     syncUrl: root.hasAttribute(attributeName(app.config.prefix, "sync-url")),
     refreshOn: (root.getAttribute(attributeName(app.config.prefix, "refresh-on")) ?? "")
       .split(/\s+/)
-      .filter(Boolean)
+      .filter(Boolean),
+    requestVersion: 0
   };
 
   tableStateByRoot.set(root, state);
@@ -1469,6 +1499,11 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
     window.history.replaceState({}, "", `${window.location.pathname}?${url.searchParams.toString()}`);
   }
 
+  // Cancel outdated table fetches and ignore late responses from mocks/caches.
+  state.activeRequest?.abort();
+  const controller = new AbortController();
+  state.activeRequest = controller;
+  const currentVersion = ++state.requestVersion;
   state.root.dataset.latchTableLoading = "true";
 
   try {
@@ -1477,9 +1512,11 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
       method: "GET",
       url: url.toString(),
       target,
-      swap: "innerHTML"
+      swap: "innerHTML",
+      signal: controller.signal
     });
 
+    if (currentVersion !== state.requestVersion) return;
     if (!response.ok) {
       app.emit("latch:requestError", {
         element: state.root,
@@ -1502,8 +1539,15 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
       target,
       "innerHTML"
     );
+  } catch (error) {
+    if (currentVersion === state.requestVersion && !(error instanceof Error && error.name === "AbortError")) {
+      app.emit("latch:requestError", { element: state.root, error });
+    }
   } finally {
-    state.root.dataset.latchTableLoading = "false";
+    if (currentVersion === state.requestVersion) {
+      state.activeRequest = undefined;
+      state.root.dataset.latchTableLoading = "false";
+    }
   }
 }
 
