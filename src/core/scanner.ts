@@ -61,15 +61,20 @@ export function scanTree(app: ScannerApp, root: ParentNode): void {
 }
 
 function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): void {
+  const initialized = initializedElements.has(el);
   const stateExpression = el.getAttribute(attributeName(app.config.prefix, "state"));
-  const scope = stateExpression
-    ? createScope(el, stateExpression, currentScope, {
-        $el: el,
-        $store: app.stores
-      })
-    : currentScope;
+  // A swapped parent's rescan must reuse its scope: recreating it resets
+  // local state and can even make the scope its own parent.
+  const scope = initialized
+    ? getScope(el) ?? currentScope
+    : stateExpression
+      ? createScope(el, stateExpression, currentScope, {
+          $el: el,
+          $store: app.stores
+        })
+      : currentScope;
 
-  if (!initializedElements.has(el)) {
+  if (!initialized) {
     initializeElement(app, el, scope);
     initializedElements.add(el);
   }
