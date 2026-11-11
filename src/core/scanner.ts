@@ -41,10 +41,10 @@ let detachObserver: MutationObserver | undefined;
 function observeDetachments(): void {
   if (detachObserver || typeof MutationObserver === "undefined" || !document.documentElement) return;
   detachObserver = new MutationObserver((records) => {
-    const removed: Element[] = [];
+    const removed: HTMLElement[] = [];
     for (const record of records) {
       for (const node of Array.from(record.removedNodes)) {
-        if (node instanceof Element) removed.push(node);
+        if (node instanceof HTMLElement) removed.push(node);
       }
     }
     if (!removed.length) return;
@@ -125,7 +125,7 @@ export function scanTree(app: ScannerApp, root: ParentNode): void {
   app.emit("latch:afterScan", { root });
 }
 
-function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): void {
+function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof getScope>): void {
   const initialized = initializedElements.has(el);
   const stateExpression = el.getAttribute(attributeName(app.config.prefix, "state"));
   // A swapped parent's rescan must reuse its scope: recreating it resets
@@ -139,7 +139,7 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): vo
         })
       : currentScope;
 
-  if (initialized && stateExpression && scope?.root === el && scope.parent !== currentScope) {
+  if (initialized && stateExpression && scope?.root === el && scope !== currentScope && scope.parent !== currentScope) {
     relinkScope(scope, currentScope);
     scope.notify();
   }
