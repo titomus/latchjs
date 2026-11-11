@@ -116,9 +116,17 @@
     async function waitValue(expected){
       var deadline=timer()+3000;
       while(timer()<deadline){
-        var element=target.querySelector(".workflow-value");
-        if(element&&element.textContent.trim()===String(expected)&&target.querySelector(".workflow-inc"))return;
-        await new Promise(function(resolve){requestAnimationFrame(resolve);});
+        // Microtasks first for both engines: Alpine batches reactions in
+        // microtasks, whereas Latch updates synchronously. Waiting for a
+        // requestAnimationFrame here would add up to one full frame to each
+        // Alpine action and artificially inflate the competitor's latency.
+        for(var tick=0;tick<32;tick++){
+          var element=target.querySelector(".workflow-value");
+          if(element&&element.textContent.trim()===String(expected)&&target.querySelector(".workflow-inc"))return;
+          await Promise.resolve();
+        }
+        // Only yield to the event loop if microtasks did not settle it.
+        await new Promise(function(resolve){setTimeout(resolve,0);});
       }
       throw new Error("Workflow did not become interactive at count "+expected);
     }

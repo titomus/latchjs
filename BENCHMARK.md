@@ -35,6 +35,7 @@ Each runtime lives in its own iframe; its DOM and global listeners cannot influe
 - Request latency is affected by network quality and GitHub Pages caching. No backend processing is measured.
 - DOM-ready and `afterSwap` differ from end-to-end perceptual input-to-paint latency.
 - The combined workload uses two markup fixtures with identical structural elements but different `lt-*` versus `hx-*`/`x-*` directives. It measures time to a usable reactive interface, not application-wide feature parity.
+- Combined workflow readiness checks **microtasks first** for both libraries and only yields to the next event loop turn if necessary. Waiting for `requestAnimationFrame` after every Alpine action would systematically bias results by full-frame delays.
 - Bundled script sizes do not capture the full application's styling, added plugins, page markup or server-side costs.
 - Load/parsing of the runtime itself is not part of the initialization measurement.
 - For high confidence, run at least 20 repetitions at several node counts, in different browsers, after hard refresh, and repeat the complete experiment several times.
