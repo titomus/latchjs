@@ -416,4 +416,72 @@ describe("Latch", () => {
     expect(document.querySelector("#once-value")?.textContent).toBe("1");
   });
 
+  it("preserves local state when rescanning the same subtree", () => {
+    document.body.innerHTML = `
+      <div lt-state="{count:0}">
+        <button id="rescan-inc" lt-click="count += 1">+</button>
+        <span id="rescan-value" lt-text="count"></span>
+      </div>
+    `;
+    Latch.start();
+    (document.querySelector("#rescan-inc") as HTMLButtonElement).click();
+    expect(document.querySelector("#rescan-value")?.textContent).toBe("1");
+    Latch.scan(document.body);
+    (document.querySelector("#rescan-inc") as HTMLButtonElement).click();
+    expect(document.querySelector("#rescan-value")?.textContent).toBe("2");
+  });
+
+  it("keeps the latest GET response when earlier fetches resolve later", async () => {
+    document.body.innerHTML = `
+      <button id="race-load" lt-get="/race" lt-target="#race-target">Load</button>
+      <div id="race-target"></div>
+    `;
+    const complete: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      complete.push(resolve);
+    })));
+    Latch.start();
+    const button = document.querySelector("#race-load") as HTMLButtonElement;
+    button.click();
+    button.click();
+    expect(complete.length).toBe(2);
+    const html = (content: string) => new Response(content, {
+      status: 200, headers: { "content-type": "text/html" }
+    });
+    complete[1](html("<strong>NEW</strong>"));
+    await vi.waitFor(() => expect(document.querySelector("#race-target")?.textContent).toBe("NEW"));
+    complete[0](html("<strong>OLD</strong>"));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector("#race-target")?.textContent).toBe("NEW");
+  });
+
+  it("ignores stale native table results after a filter change", async () => {
+    document.body.innerHTML = `
+      <section lt-table lt-source="/api/list" lt-target="#race-table">
+        <select id="race-stage" lt-table-filter="stage">
+          <option value="">All</option>
+          <option value="ready">Ready</option>
+        </select>
+        <div id="race-table"></div>
+      </section>
+    `;
+    const complete: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      complete.push(resolve);
+    })));
+    Latch.start();
+    const field = document.querySelector("#race-stage") as HTMLSelectElement;
+    field.value = "ready";
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(complete.length).toBe(2);
+    const html = (content: string) => new Response(content, {
+      status: 200, headers: { "content-type": "text/html" }
+    });
+    complete[1](html("<p>READY</p>"));
+    await vi.waitFor(() => expect(document.querySelector("#race-table")?.textContent).toBe("READY"));
+    complete[0](html("<p>ALL</p>"));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector("#race-table")?.textContent).toBe("READY");
+  });
+
 });
