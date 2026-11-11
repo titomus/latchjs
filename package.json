@@ -23,7 +23,8 @@
     "test:all": "npm test && npm run test:e2e",
     "dev": "vite --host",
     "dev:examples": "vite --host",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:pages": "node scripts/build-pages.mjs"
   },
   "keywords": [
     "html-first",
