@@ -57,6 +57,12 @@ export async function runRequest(
 ): Promise<Response> {
   const request = buildRequest(runtime, options);
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (options.signal?.aborted) {
+    controller.abort();
+  } else {
+    options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
 
   runtime.emit("latch:beforeRequest", {
     element: options.element,
@@ -85,7 +91,8 @@ export async function runRequest(
 
     return response;
   } finally {
-    if (timeoutId) {
+    options.signal?.removeEventListener("abort", abortFromCaller);
+    if (timeoutId !== undefined) {
       window.clearTimeout(timeoutId);
     }
   }
