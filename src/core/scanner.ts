@@ -102,27 +102,39 @@ function initializeFormEnhancements(app: ScannerApp, el: HTMLElement): void {
   }
 
   if (el instanceof HTMLFormElement && el.hasAttribute(attributeName(app.config.prefix, "submit-on-change"))) {
-    const submit = (event: Event) => {
-      const target = event.target;
-
-      if (target instanceof HTMLElement && !isSubmitControl(target)) {
-        el.requestSubmit();
-      }
-    };
-
-    el.addEventListener("change", submit);
-    el.addEventListener("input", submit);
+    bindAutoSubmit(el, el, app.config.prefix);
   }
 
   if (isValueElement(el) && el.hasAttribute(attributeName(app.config.prefix, "submit-on-change"))) {
     const form = resolveAssociatedForm(el);
-
-    if (form) {
-      const submit = () => form.requestSubmit();
-      el.addEventListener("change", submit);
-      el.addEventListener("input", submit);
-    }
+    if (form) bindAutoSubmit(el, form, app.config.prefix);
   }
+}
+
+function bindAutoSubmit(source: HTMLElement, form: HTMLFormElement, prefix: string): void {
+  const rawDelay = Number(source.getAttribute(attributeName(prefix, "debounce")) ??
+    form.getAttribute(attributeName(prefix, "debounce")) ?? 250);
+  const delay = Number.isFinite(rawDelay) ? Math.max(0, rawDelay) : 250;
+  let timer: number | undefined;
+  const schedule = (event: Event) => {
+    const field = event.target;
+    if (field instanceof HTMLElement && isSubmitControl(field)) return;
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = undefined;
+
+    // Keyboard input is debounced, while select/change actions submit
+    // immediately. A change event also cancels any pending input timer.
+    if (event.type === "input" && delay > 0) {
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        if (form.isConnected) form.requestSubmit();
+      }, delay);
+    } else if (form.isConnected) {
+      form.requestSubmit();
+    }
+  };
+  source.addEventListener("input", schedule);
+  source.addEventListener("change", schedule);
 }
 
 function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
