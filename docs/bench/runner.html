@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Isolated benchmark worker</title>
+<style>body{margin:0;font-family:system-ui}.fixture-row{display:flex;justify-content:space-between}</style></head>
+<body>
+<div id="stage"></div>
+<script>
+(function(){
+  "use strict";
+  var engine=new URLSearchParams(location.search).get("engine")||"latch";
+  var map={latch:"../dist/latch.min.js",alpine:"../vendor/alpine.min.js",htmx:"../vendor/htmx.min.js"};
+  var stage=document.getElementById("stage");
+  var ready=false;
+  var currentRun=Promise.resolve();
+  function send(payload){window.parent.postMessage(Object.assign({source:"latch-benchmark",engine:engine},payload),location.origin);}
+  function timer(){return performance.now();}
+  function median(a){var s=a.slice().sort(function(x,y){return x-y;});return s[Math.floor((s.length-1)/2)]||0;}
+  function p95(a){var s=a.slice().sort(function(x,y){return x-y;});return s[Math.ceil(s.length*.95)-1]||0;}
+  function waitForText(element,expected){
+    return (async function(){
+      for(var i=0;i<25;i++){
+        if(element.textContent.trim()===String(expected))return;
+        await Promise.resolve();
+      }
+      throw new Error("Binding did not settle: expected "+expected+", got "+element.textContent);
+    })();
+  }
+  function stats(times,initMs){
+    return {initMs:+initMs.toFixed(3),medianMs:+median(times).toFixed(3),
+      p95Ms:+p95(times).toFixed(3),samples:times.map(function(n){return +n.toFixed(3);})};
+  }
+  function runtime(){
+    return window.Latch&&window.Latch.start?window.Latch:window.Latch&&window.Latch.Latch;
+  }
+  async function stateTest(options){
+    if(engine==="htmx")throw new Error("htmx has no built-in client-side state: compare Latch to Alpine.");
+    var rows=Math.min(2500,Math.max(20,Number(options.rows)||100));
+    var iterations=Math.min(40,Math.max(3,Number(options.iterations)||12));
+    var attr=engine==="latch"?"lt-text":"x-text";
+    var rootState=engine==="latch"?'lt-state="{count:0}"':'x-data="{count:0}"';
+    var action=engine==="latch"?'lt-click="count += 1"':'x-on:click="count += 1"';
+    var markup='<div '+rootState+'><button type="button" '+action+'>Increment</button><div>';
+    for(var i=0;i<rows;i++)markup+='<span '+attr+'="count">-</span>';
+    markup+='</div></div>';
+    stage.innerHTML=markup;
+    var root=stage.firstElementChild;
+    var trigger=root.querySelector("button");
+    var last=root.querySelector("span:last-child");
+    var start=timer();
+    if(engine==="latch")runtime().scan(root);
+    else window.Alpine.initTree(root);
+    await waitForText(last,0);
+    var initMs=timer()-start;
+    var times=[];
+    for(var j=1;j<=iterations+3;j++){
+      var t=timer();
+      trigger.click();
+      await waitForText(last,j);
+      if(j>3)times.push(timer()-t);
+    }
+    return Object.assign({rows:rows,iterations:iterations,metric:"DOM committed"},stats(times,initMs));
+  }
+  async function swapTest(options){
+    if(engine==="alpine")throw new Error("Alpine is not the HTTP swap engine: compare Latch to htmx.");
+    var iterations=Math.min(25,Math.max(2,Number(options.iterations)||8));
+    var url="../fixtures/fragment.html";
+    var button=engine==="latch"
+      ?'<button lt-get="'+url+'" lt-target="#swap-target" lt-swap="innerHTML" type="button">Load</button>'
+      :'<button hx-get="'+url+'" hx-target="#swap-target" hx-swap="innerHTML swap:0ms settle:0ms" type="button">Load</button>';
+    stage.innerHTML=button+'<div id="swap-target"></div>';
+    var trigger=stage.querySelector("button"), target=stage.querySelector("#swap-target");
+    var initStart=timer();
+    if(engine==="latch")runtime().scan(stage);
+    else window.htmx.process(stage);
+    var initMs=timer()-initStart;
+    var times=[];
+    for(var i=0;i<iterations+2;i++){
+      target.innerHTML="";
+      var elapsed=await new Promise(function(resolve,reject){
+        var start=timer(), finished=false;
+        var eventName=engine==="latch"?"latch:afterSwap":"htmx:afterSwap";
+        var eventTarget=engine==="latch"?window:document;
+        var timeout=setTimeout(function(){finish(new Error("Swap timed out"));},10000);
+        function finish(error){
+          if(finished)return;
+          finished=true;clearTimeout(timeout);
+          eventTarget.removeEventListener(eventName,handler);
+          if(error)reject(error);else resolve(timer()-start);
+        }
+        function handler(event){
+          if(engine==="latch"&&event.detail&&event.detail.element!==trigger)return;
+          if(engine==="htmx"&&event.detail&&event.detail.elt!==target&&event.detail.target!==target)return;
+          if(target.querySelectorAll(".fixture-row").length!==80)return;
+          finish();
+        }
+        eventTarget.addEventListener(eventName,handler);
+        trigger.click();
+      });
+      if(i>=2)times.push(elapsed);
+    }
+    return Object.assign({rows:80,iterations:iterations,metric:"click → afterSwap (including HTTP)"},stats(times,initMs));
+  }
+  function receive(event){
+    if(event.source!==window.parent||event.origin!==location.origin)return;
+    var msg=event.data;
+    if(!msg||msg.source!=="latch-benchmark-host"||!msg.id)return;
+    currentRun=currentRun.then(async function(){
+      if(!ready)throw new Error("Runtime still loading");
+      var result=msg.task==="state"?await stateTest(msg):await swapTest(msg);
+      send({id:msg.id,ok:true,task:msg.task,result:result});
+    }).catch(function(error){
+      send({id:msg.id,ok:false,task:msg.task,error:String(error&&error.message||error)});
+    });
+  }
+  window.addEventListener("message",receive);
+  var script=document.createElement("script");
+  script.src=map[engine]||map.latch;
+  script.onload=function(){
+    if(engine==="latch"){var r=runtime();if(!r)throw Error("Latch unavailable");r.start();}
+    ready=true;
+    send({ready:true});
+  };
+  script.onerror=function(){send({ready:false,error:"Cannot load "+script.src});};
+  document.head.appendChild(script);
+})();
+</script></body></html>

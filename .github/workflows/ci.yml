@@ -3,7 +3,10 @@ on:
   pull_request:
   push:
     branches:
-      - fix/runtime-stability-benchmark-20261111
+      - main
+concurrency:
+  group: latch-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -19,9 +22,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: |
-          mkdir -p _site/dist
-          cp docs/index.html _site/index.html
-          cp dist/latch.js _site/dist/latch.js
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --no-save --no-package-lock --ignore-scripts alpinejs@3.17.5 htmx.org@2.0.11
+      - run: npm run build:pages
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install chromium
       - run: npm run test:pages

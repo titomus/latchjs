@@ -277,15 +277,26 @@ Latch.plugin((app) => {
 Latch.start();
 ```
 
-## Demo
+## Interactive demos and reproducible benchmarks
 
-- [Interactive GitHub Pages playground](https://titomus.github.io/latchjs/) with a local-state, HTML-swap and performance lab.
+- **[Full product showcase](https://titomus.github.io/latchjs/)**: a realistic SaaS-like dashboard with reactive pricing, searchable/paginated contacts, form validation, simulated server mutations, modal, drawer, toasts, tabs, accordion and event log.
+- **[HTMX + Alpine comparison lab](https://titomus.github.io/latchjs/benchmark.html)**: isolated, real runtime comparisons with raw measurements and download.
+- **[Minimal playground](https://titomus.github.io/latchjs/lab.html)**: the original quick demos and Latch-only microbenchmark.
 - [Technical audit and release blockers](AUDIT.md).
-- A local demo page is available in `examples/basic/index.html`.
+- Local examples are in `examples/`, including a plugin lab.
 
-The performance lab measures Latch's scan and state-update cost on your browser; it is **not** proof that Latch is faster than HTMX + Alpine.
+GitHub Pages is static. The showcase uses a clearly marked **in-memory mock server**, but all Latch behavior, directives and DOM swaps are real. Data resets when the page reloads.
 
-The examples hub now includes a plugin lab showing custom directives connected to state, events and toasts.
+The benchmark uses pinned **htmx 2.0.11** and **Alpine 3.17.5** with the current Latch build. It compares Latch against Alpine for local state and against HTMX for HTML swaps. It does **not** claim that Latch is universally faster. See [benchmark methodology](BENCHMARK.md).
+
+To build the Pages site locally after `npm ci`:
+
+```sh
+npm run build
+npm install --no-save --no-package-lock --ignore-scripts alpinejs@3.17.5 htmx.org@2.0.11
+npm run build:pages
+python3 -m http.server 4180 --bind 127.0.0.1 --directory _site
+```
 
 ## Public roadmap
 

@@ -4,7 +4,7 @@ test("the published bundle powers state, swaps, and the performance lab", async 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
 
-  await page.goto("/");
+  await page.goto("/lab.html");
   await expect(page.locator(".number")).toHaveText("0");
   await page.getByRole("button", { name: "Increment" }).click();
   await expect(page.locator(".number")).toHaveText("1");

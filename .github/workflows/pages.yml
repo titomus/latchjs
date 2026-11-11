@@ -15,7 +15,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,11 +26,8 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-      - run: |
-          mkdir -p _site/dist
-          cp docs/index.html _site/index.html
-          cp dist/latch.js dist/latch.min.js dist/latch.esm.js _site/dist/
-          touch _site/.nojekyll
+      - run: npm install --no-save --no-package-lock --ignore-scripts alpinejs@3.17.5 htmx.org@2.0.11
+      - run: npm run build:pages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
