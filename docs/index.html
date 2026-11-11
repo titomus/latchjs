@@ -26,6 +26,14 @@
 <div lt-toast-container></div>
 </section>
 <section class="panel"><h2>Lifecycle</h2><p>Watch Latch requests and swaps as they happen.</p><div class="result" id="events" aria-live="polite">No events yet</div></section>
+<section class="panel"><h2>Performance lab</h2>
+<p>Run a reproducible in-browser scan and reactive-update microbenchmark. Results depend on device and browser.</p>
+<label for="bench-size">Reactive text bindings</label>
+<div class="row"><select id="bench-size" style="background:#0b1020;color:white;padding:10px;border-radius:8px"><option value="100">100</option><option value="500">500</option><option value="1000">1,000</option><option value="2500">2,500</option></select><button id="bench-run" type="button">Run 20 updates</button></div>
+<output class="result" id="bench-result" aria-live="polite">Not measured yet.</output>
+<div id="bench-host" hidden></div>
+<p><small>Measures Latch only. Not a fair HTMX + Alpine comparison until matched workloads run under identical conditions.</small></p>
+</section>
 </div>
 <p><small>GitHub Pages is a static host. This demo mocks one endpoint. For real server-driven CRUD, use Latch with a PHP or other HTTP backend.</small></p>
 <p><a href="https://github.com/titomus/latchjs">Source code and documentation</a></p>
@@ -45,8 +53,35 @@
  for(const name of ["latch:beforeRequest","latch:afterSwap"]){
   window.addEventListener(name,()=>{document.getElementById("events").textContent=(++count)+" · "+name;});
  }
- if(window.Latch && typeof window.Latch.start==="function"){window.Latch.start();}
+ const latch = window.Latch?.start ? window.Latch : window.Latch?.Latch;
+ if(latch && typeof latch.start==="function"){latch.start();}
  else{document.getElementById("events").textContent="Bundle missing: build and deploy GitHub Pages.";}
+ const run = document.getElementById("bench-run");
+ run.addEventListener("click",()=>{
+  if(!latch?.scan) return;
+  const size = Number(document.getElementById("bench-size").value);
+  const host = document.getElementById("bench-host");
+  const output = document.getElementById("bench-result");
+  // Each invocation uses a fresh scope, avoiding results contaminated by the
+  // previous run's attached event handlers.
+  let rows = "";
+  for(let i=0;i<size;i++) rows += '<span lt-text="count" style="display:inline-block;margin:1px"></span>';
+  host.innerHTML = '<div lt-state="{count:0}"><button type="button" id="bench-inc" lt-click="count += 1">+</button><div>'+rows+'</div></div>';
+  const beforeScan = performance.now();
+  latch.scan(host);
+  const scanMs = performance.now()-beforeScan;
+  const trigger = document.getElementById("bench-inc");
+  const trials = [];
+  for(let i=0;i<20;i++){
+   const start = performance.now();
+   trigger.click();
+   trials.push(performance.now()-start);
+  }
+  const mean = trials.reduce((a,b)=>a+b,0)/trials.length;
+  const sorted = trials.slice().sort((a,b)=>a-b);
+  const p95 = sorted[Math.ceil(sorted.length*.95)-1];
+  output.textContent = size.toLocaleString()+" bindings · scan "+scanMs.toFixed(2)+" ms · update mean "+mean.toFixed(2)+" ms · p95 "+p95.toFixed(2)+" ms";
+ });
 })();
 </script>
 </body></html>

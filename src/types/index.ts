@@ -33,6 +33,8 @@ export interface RequestOptions {
   body?: BodyInit | null;
   headers?: HeadersInit;
   timeout?: number;
+  /** Optional caller cancellation (including latest-wins GET requests). */
+  signal?: AbortSignal;
 }
 
 export interface ToastOptions {

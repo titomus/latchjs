@@ -20,6 +20,38 @@ export interface Scope {
 
 const scopeByRoot = new WeakMap<HTMLElement, Scope>();
 
+// Coalesce assignments made in one declarative action into a single
+// synchronous DOM update. Synchronous rendering is kept for callers/tests.
+let actionDepth = 0;
+const dirtyScopes = new Set<Scope>();
+
+function notifyScope(scope: Scope): void {
+  if (actionDepth > 0) {
+    dirtyScopes.add(scope);
+  } else {
+    renderScope(scope);
+  }
+}
+
+function batchAction<T>(callback: () => T): T {
+  actionDepth++;
+  try {
+    return callback();
+  } finally {
+    actionDepth--;
+    if (actionDepth === 0) {
+      const pending = new Set(dirtyScopes);
+      dirtyScopes.clear();
+      for (const scope of pending) {
+        // A parent render already updates all its nested scopes.
+        let parent = scope.parent;
+        while (parent && !pending.has(parent)) parent = parent.parent;
+        if (!parent) renderScope(scope);
+      }
+    }
+  }
+}
+
 function findOwner(scope: Scope, key: string): Scope {
   if (Object.prototype.hasOwnProperty.call(scope.raw, key)) {
     return scope;
@@ -53,7 +85,9 @@ function createRuntimeProxy(scope: Scope, extras?: Record<string, unknown>): Rec
         }
 
         if (scope.parent) {
-          return createRuntimeProxy(scope.parent, extras)[key];
+          // The parent already has a stable proxy; recreating one on every
+          // inherited property read was especially costly in nested scopes.
+          return scope.parent.proxy[key];
         }
 
         return undefined;
@@ -185,6 +219,24 @@ function syncModel(el: HTMLElement, value: unknown): void {
   }
 }
 
+// Detach scopes without deleting their state: an element moved and scanned
+// again can keep its local data and inherit its new parent scope.
+export function relinkScope(scope: Scope, parent?: Scope): void {
+  // Scope parent graphs must remain acyclic, even after unusual DOM moves.
+  for (let ancestor = parent; ancestor; ancestor = ancestor.parent) {
+    if (ancestor === scope) return;
+  }
+  if (scope.parent === parent) return;
+  scope.parent?.children.delete(scope);
+  scope.parent = parent;
+  parent?.children.add(scope);
+}
+
+export function detachScope(element: Element): void {
+  const scope = scopeByRoot.get(element as HTMLElement);
+  if (scope) relinkScope(scope, undefined);
+}
+
 export function getScope(el: HTMLElement | null): Scope | undefined {
   if (!el) {
     return undefined;
@@ -210,7 +262,7 @@ export function createScope(
     bindings: new Set<ScopeBinding>(),
     children: new Set<Scope>(),
     notify() {
-      renderScope(scope);
+      notifyScope(scope);
     }
   };
 
@@ -232,7 +284,15 @@ export function runInScope(
   expression: string,
   extras?: Record<string, unknown>
 ): unknown {
-  return executeExpression(expression, createRuntimeProxy(scope, extras));
+  return batchAction(() => {
+    try {
+      return executeExpression(expression, createRuntimeProxy(scope, extras));
+    } finally {
+      // Also handles nested mutations such as items.push(), which do not
+      // trigger a direct property write through the scope proxy.
+      scope.notify();
+    }
+  });
 }
 
 export function setModelValue(
@@ -241,8 +301,10 @@ export function setModelValue(
   value: unknown,
   extras?: Record<string, unknown>
 ): void {
-  assignExpression(expression, createRuntimeProxy(scope, extras), value);
-  scope.notify();
+  batchAction(() => {
+    assignExpression(expression, createRuntimeProxy(scope, extras), value);
+    scope.notify();
+  });
 }
 
 export function renderScope(scope: Scope): void {
@@ -251,6 +313,11 @@ export function renderScope(scope: Scope): void {
   }
 
   for (const child of scope.children) {
+    if (!child.root.isConnected) {
+      // Detached scopes must not retain entire removed DOM subtrees.
+      relinkScope(child, undefined);
+      continue;
+    }
     renderScope(child);
   }
 }

@@ -279,7 +279,11 @@ Latch.start();
 
 ## Demo
 
-A local demo page is available in `examples/basic/index.html`.
+- [Interactive GitHub Pages playground](https://titomus.github.io/latchjs/) with a local-state, HTML-swap and performance lab.
+- [Technical audit and release blockers](AUDIT.md).
+- A local demo page is available in `examples/basic/index.html`.
+
+The performance lab measures Latch's scan and state-update cost on your browser; it is **not** proof that Latch is faster than HTMX + Alpine.
 
 The examples hub now includes a plugin lab showing custom directives connected to state, events and toasts.
 

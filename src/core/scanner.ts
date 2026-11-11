@@ -1,6 +1,6 @@
 import type { DirectiveInstaller, LatchConfig, RequestOptions } from "../types";
 import { attributeName } from "./config";
-import { bindScope, createScope, getScope, runInScope, setModelValue } from "./state";
+import { bindScope, createScope, detachScope, getScope, relinkScope, runInScope, setModelValue } from "./state";
 import { handleResponse } from "./request";
 
 interface ScannerApp {
@@ -30,6 +30,71 @@ const requestAttributes = ["get", "post", "put", "patch", "delete"] as const;
 let beforeUnloadBound = false;
 const tableStateByRoot = new WeakMap<HTMLElement, TableState>();
 
+interface ExternalBinding {
+  connect: () => () => void;
+  release?: () => void;
+}
+const externalBindings = new WeakMap<HTMLElement, ExternalBinding[]>();
+let detachObserver: MutationObserver | undefined;
+
+// Observe only removals, not every DOM read or reactive update.
+function observeDetachments(): void {
+  if (detachObserver || typeof MutationObserver === "undefined" || !document.documentElement) return;
+  detachObserver = new MutationObserver((records) => {
+    const removed: HTMLElement[] = [];
+    for (const record of records) {
+      for (const node of Array.from(record.removedNodes)) {
+        // nodeType does not rely on global DOM constructors that jsdom may
+        // remove during test teardown while MutationObserver is still queued.
+        if (node.nodeType === 1) removed.push(node as HTMLElement);
+      }
+    }
+    if (!removed.length) return;
+    queueMicrotask(() => {
+      for (const root of removed) {
+        // Moving a node in the same turn must not disable its subscriptions.
+        if (root.isConnected) continue;
+        detachExternal(root);
+        root.querySelectorAll("*").forEach(detachExternal);
+      }
+    });
+  });
+  detachObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+function detachExternal(element: Element): void {
+  detachScope(element);
+  for (const binding of externalBindings.get(element as HTMLElement) ?? []) {
+    binding.release?.();
+    binding.release = undefined;
+  }
+}
+
+function restoreExternal(element: HTMLElement): void {
+  for (const binding of externalBindings.get(element) ?? []) {
+    if (!binding.release) binding.release = binding.connect();
+  }
+}
+
+function registerExternal(element: HTMLElement, connect: () => () => void): void {
+  observeDetachments();
+  const bindings = externalBindings.get(element) ?? [];
+  bindings.push({ connect, release: connect() });
+  externalBindings.set(element, bindings);
+}
+
+function listenExternal(
+  owner: HTMLElement,
+  target: Window | Document,
+  event: string,
+  listener: EventListener
+): void {
+  registerExternal(owner, () => {
+    target.addEventListener(event, listener);
+    return () => target.removeEventListener(event, listener);
+  });
+}
+
 interface TableState {
   root: HTMLElement;
   source: string;
@@ -41,6 +106,8 @@ interface TableState {
   page: number;
   syncUrl: boolean;
   refreshOn: string[];
+  requestVersion: number;
+  activeRequest?: AbortController;
 }
 
 export function scanTree(app: ScannerApp, root: ParentNode): void {
@@ -50,28 +117,42 @@ export function scanTree(app: ScannerApp, root: ParentNode): void {
   // Walking every descendant again made a full scan quadratic and could
   // initialize nested scopes against the wrong parent.
   if (root instanceof HTMLElement) {
-    walk(app, root, getScope(root));
+    walk(app, root, getScope(root.parentElement));
   } else {
     for (const child of Array.from(root.children)) {
-      if (child instanceof HTMLElement) walk(app, child, getScope(child));
+      if (child instanceof HTMLElement) walk(app, child, getScope(child.parentElement));
     }
   }
 
   app.emit("latch:afterScan", { root });
 }
 
-function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): void {
+function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof getScope>): void {
+  const initialized = initializedElements.has(el);
   const stateExpression = el.getAttribute(attributeName(app.config.prefix, "state"));
-  const scope = stateExpression
-    ? createScope(el, stateExpression, currentScope, {
-        $el: el,
-        $store: app.stores
-      })
-    : currentScope;
+  // A swapped parent's rescan must reuse its scope: recreating it resets
+  // local state and can even make the scope its own parent.
+  const scope = initialized
+    ? getScope(el) ?? currentScope
+    : stateExpression
+      ? createScope(el, stateExpression, currentScope, {
+          $el: el,
+          $store: app.stores
+        })
+      : currentScope;
 
-  if (!initializedElements.has(el)) {
+  if (initialized && stateExpression && scope?.root === el && scope !== currentScope && scope.parent !== currentScope) {
+    relinkScope(scope, currentScope);
+    scope.notify();
+  }
+
+  if (!initialized) {
     initializeElement(app, el, scope);
     initializedElements.add(el);
+  } else {
+    // Restores subscriptions when a previously detached node is reinserted
+    // and scanned again, without duplicating its element-local handlers.
+    restoreExternal(el);
   }
 
   for (const child of Array.from(el.children)) {
@@ -95,27 +176,39 @@ function initializeFormEnhancements(app: ScannerApp, el: HTMLElement): void {
   }
 
   if (el instanceof HTMLFormElement && el.hasAttribute(attributeName(app.config.prefix, "submit-on-change"))) {
-    const submit = (event: Event) => {
-      const target = event.target;
-
-      if (target instanceof HTMLElement && !isSubmitControl(target)) {
-        el.requestSubmit();
-      }
-    };
-
-    el.addEventListener("change", submit);
-    el.addEventListener("input", submit);
+    bindAutoSubmit(el, el, app.config.prefix);
   }
 
   if (isValueElement(el) && el.hasAttribute(attributeName(app.config.prefix, "submit-on-change"))) {
     const form = resolveAssociatedForm(el);
-
-    if (form) {
-      const submit = () => form.requestSubmit();
-      el.addEventListener("change", submit);
-      el.addEventListener("input", submit);
-    }
+    if (form) bindAutoSubmit(el, form, app.config.prefix);
   }
+}
+
+function bindAutoSubmit(source: HTMLElement, form: HTMLFormElement, prefix: string): void {
+  const rawDelay = Number(source.getAttribute(attributeName(prefix, "debounce")) ??
+    form.getAttribute(attributeName(prefix, "debounce")) ?? 250);
+  const delay = Number.isFinite(rawDelay) ? Math.max(0, rawDelay) : 250;
+  let timer: number | undefined;
+  const schedule = (event: Event) => {
+    const field = event.target;
+    if (field instanceof HTMLElement && isSubmitControl(field)) return;
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = undefined;
+
+    // Keyboard input is debounced, while select/change actions submit
+    // immediately. A change event also cancels any pending input timer.
+    if (event.type === "input" && delay > 0) {
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        if (form.isConnected) form.requestSubmit();
+      }, delay);
+    } else if (form.isConnected) {
+      form.requestSubmit();
+    }
+  };
+  source.addEventListener("input", schedule);
+  source.addEventListener("change", schedule);
 }
 
 function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
@@ -140,7 +233,7 @@ function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
 
   if (refreshOn) {
     for (const eventName of refreshOn.split(/\s+/).filter(Boolean)) {
-      window.addEventListener(eventName, () => {
+      listenExternal(el, window, eventName, () => {
         void runner();
       });
     }
@@ -155,28 +248,33 @@ function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
     }
 
     if (trigger.type === "every") {
-      window.setInterval(() => {
-        void runner();
-      }, trigger.delayMs ?? 1000);
+      registerExternal(el, () => {
+        const timer = window.setInterval(() => {
+          void runner();
+        }, trigger.delayMs ?? 1000);
+        return () => window.clearInterval(timer);
+      });
       continue;
     }
 
     if (trigger.type === "event") {
-      window.addEventListener(trigger.value, (event) => {
+      listenExternal(el, window, trigger.value, (event) => {
         void runner(event);
       });
       continue;
     }
 
     if (trigger.type === "intersect") {
-      const observer = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void runner();
-          observer.disconnect();
-        }
+      registerExternal(el, () => {
+        const observer = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            void runner();
+            observer.disconnect();
+          }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
       });
-
-      observer.observe(el);
       continue;
     }
 
@@ -216,7 +314,7 @@ function initializeStateDirectives(
         $el: el,
         $store: app.stores
       });
-      scope.notify();
+      // runInScope batches and renders once before returning.
     });
   }
 
@@ -327,7 +425,7 @@ function initializeEventDirectives(
     const [eventName, action] = onExpression.split("->").map((value) => value.trim());
 
     if (eventName && action) {
-      window.addEventListener(eventName, (event) => {
+      listenExternal(el, window, eventName, (event) => {
         if (action === "refresh") {
           void createRequestRunner(app, el)();
           return;
@@ -339,7 +437,7 @@ function initializeEventDirectives(
             $el: el,
             $store: app.stores
           });
-          scope.notify();
+          // runInScope batches and renders once before returning.
         }
       });
     }
@@ -396,6 +494,8 @@ function createRequestRunner(
   el: HTMLElement,
   explicitMethod?: typeof requestAttributes[number]
 ): (event?: Event) => Promise<void> {
+  let version = 0;
+  let activeGet: { controller: AbortController; version: number; restore: () => void } | undefined;
   return async () => {
     const confirmMessage = el.getAttribute(attributeName(app.config.prefix, "confirm"));
     const form = resolveAssociatedForm(el);
@@ -417,24 +517,39 @@ function createRequestRunner(
       return;
     }
 
+    const requestOptions = resolveRequestOptions(app, el, explicitMethod);
+    if (!requestOptions.url) return;
+    const useLatest = requestOptions.method === "GET";
+    let currentVersion = 0;
+    let controller: AbortController | undefined;
+    let restore: () => void;
+
+    if (useLatest) {
+      const existingRestore = activeGet?.restore;
+      activeGet?.controller.abort();
+      controller = new AbortController();
+      currentVersion = ++version;
+      restore = existingRestore ?? setLoadingState(el, true, app.config.prefix);
+      activeGet = { controller, version: currentVersion, restore };
+    } else {
+      restore = setLoadingState(el, true, app.config.prefix);
+    }
+
+    const stale = () => useLatest && currentVersion !== version;
     const errorTarget = resolveErrorTarget(app, el);
     clearServerErrors(app, el, form, errorTarget);
-    const restore = setLoadingState(el, true, app.config.prefix);
 
     try {
-      const requestOptions = resolveRequestOptions(app, el, explicitMethod);
-
-      if (!requestOptions.url) {
-        return;
-      }
-
       const response = await app.request({
         ...requestOptions,
-        element: el
+        element: el,
+        signal: controller?.signal
       });
+      if (stale()) return;
 
       if (!response.ok) {
         await handleServerError(app, el, form, errorTarget, response);
+        if (stale()) return;
 
         const errorToast = el.getAttribute(attributeName(app.config.prefix, "toast-error"));
 
@@ -464,6 +579,8 @@ function createRequestRunner(
         requestOptions.swap ?? app.config.defaultSwap
       );
 
+      if (stale()) return;
+
       const successToast = el.getAttribute(attributeName(app.config.prefix, "toast-success"));
 
       if (successToast) {
@@ -490,6 +607,7 @@ function createRequestRunner(
         app.closeOverlay(closeOnSuccess);
       }
     } catch (error) {
+      if (stale() || (error instanceof Error && error.name === "AbortError")) return;
       const errorToast = el.getAttribute(attributeName(app.config.prefix, "toast-error"));
 
       if (errorToast) {
@@ -501,7 +619,14 @@ function createRequestRunner(
         error
       });
     } finally {
-      restore();
+      if (useLatest) {
+        if (activeGet?.version === currentVersion) {
+          activeGet.restore();
+          activeGet = undefined;
+        }
+      } else {
+        restore();
+      }
     }
   };
 }
@@ -1088,14 +1213,14 @@ function initializeDropdown(app: ScannerApp, root: HTMLElement): void {
     }
   });
 
-  document.addEventListener("click", (event) => {
+  listenExternal(root, document, "click", (event) => {
     if (!root.contains(event.target as Node)) {
       close();
     }
   });
 
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+  listenExternal(root, window, "keydown", (event) => {
+    if ((event as KeyboardEvent).key === "Escape") {
       close(true);
     }
   });
@@ -1325,7 +1450,8 @@ function initializeTable(app: ScannerApp, root: HTMLElement): void {
     syncUrl: root.hasAttribute(attributeName(app.config.prefix, "sync-url")),
     refreshOn: (root.getAttribute(attributeName(app.config.prefix, "refresh-on")) ?? "")
       .split(/\s+/)
-      .filter(Boolean)
+      .filter(Boolean),
+    requestVersion: 0
   };
 
   tableStateByRoot.set(root, state);
@@ -1411,7 +1537,7 @@ function initializeTable(app: ScannerApp, root: HTMLElement): void {
   });
 
   for (const eventName of state.refreshOn) {
-    window.addEventListener(eventName, () => {
+    listenExternal(root, window, eventName, () => {
       void loadTable(app, state);
     });
   }
@@ -1464,6 +1590,11 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
     window.history.replaceState({}, "", `${window.location.pathname}?${url.searchParams.toString()}`);
   }
 
+  // Cancel outdated table fetches and ignore late responses from mocks/caches.
+  state.activeRequest?.abort();
+  const controller = new AbortController();
+  state.activeRequest = controller;
+  const currentVersion = ++state.requestVersion;
   state.root.dataset.latchTableLoading = "true";
 
   try {
@@ -1472,9 +1603,11 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
       method: "GET",
       url: url.toString(),
       target,
-      swap: "innerHTML"
+      swap: "innerHTML",
+      signal: controller.signal
     });
 
+    if (currentVersion !== state.requestVersion) return;
     if (!response.ok) {
       app.emit("latch:requestError", {
         element: state.root,
@@ -1497,8 +1630,15 @@ async function loadTable(app: ScannerApp, state: TableState): Promise<void> {
       target,
       "innerHTML"
     );
+  } catch (error) {
+    if (currentVersion === state.requestVersion && !(error instanceof Error && error.name === "AbortError")) {
+      app.emit("latch:requestError", { element: state.root, error });
+    }
   } finally {
-    state.root.dataset.latchTableLoading = "false";
+    if (currentVersion === state.requestVersion) {
+      state.activeRequest = undefined;
+      state.root.dataset.latchTableLoading = "false";
+    }
   }
 }
 

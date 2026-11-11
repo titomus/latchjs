@@ -416,4 +416,139 @@ describe("Latch", () => {
     expect(document.querySelector("#once-value")?.textContent).toBe("1");
   });
 
+  it("preserves local state when rescanning the same subtree", () => {
+    document.body.innerHTML = `
+      <div lt-state="{count:0}">
+        <button id="rescan-inc" lt-click="count += 1">+</button>
+        <span id="rescan-value" lt-text="count"></span>
+      </div>
+    `;
+    Latch.start();
+    (document.querySelector("#rescan-inc") as HTMLButtonElement).click();
+    expect(document.querySelector("#rescan-value")?.textContent).toBe("1");
+    Latch.scan(document.body);
+    (document.querySelector("#rescan-inc") as HTMLButtonElement).click();
+    expect(document.querySelector("#rescan-value")?.textContent).toBe("2");
+  });
+
+  it("keeps the latest GET response when earlier fetches resolve later", async () => {
+    document.body.innerHTML = `
+      <button id="race-load" lt-get="/race" lt-target="#race-target">Load</button>
+      <div id="race-target"></div>
+    `;
+    const complete: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      complete.push(resolve);
+    })));
+    Latch.start();
+    const button = document.querySelector("#race-load") as HTMLButtonElement;
+    button.click();
+    button.click();
+    expect(complete.length).toBe(2);
+    const html = (content: string) => new Response(content, {
+      status: 200, headers: { "content-type": "text/html" }
+    });
+    complete[1](html("<strong>NEW</strong>"));
+    await vi.waitFor(() => expect(document.querySelector("#race-target")?.textContent).toBe("NEW"));
+    complete[0](html("<strong>OLD</strong>"));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector("#race-target")?.textContent).toBe("NEW");
+  });
+
+  it("ignores stale native table results after a filter change", async () => {
+    document.body.innerHTML = `
+      <section lt-table lt-source="/api/list" lt-target="#race-table">
+        <select id="race-stage" lt-table-filter="stage">
+          <option value="">All</option>
+          <option value="ready">Ready</option>
+        </select>
+        <div id="race-table"></div>
+      </section>
+    `;
+    const complete: Array<(response: Response) => void> = [];
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => {
+      complete.push(resolve);
+    })));
+    Latch.start();
+    const field = document.querySelector("#race-stage") as HTMLSelectElement;
+    field.value = "ready";
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(complete.length).toBe(2);
+    const html = (content: string) => new Response(content, {
+      status: 200, headers: { "content-type": "text/html" }
+    });
+    complete[1](html("<p>READY</p>"));
+    await vi.waitFor(() => expect(document.querySelector("#race-table")?.textContent).toBe("READY"));
+    complete[0](html("<p>ALL</p>"));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector("#race-table")?.textContent).toBe("READY");
+  });
+
+  it("batches multiple mutations and updates text synchronously", () => {
+    document.body.innerHTML = `
+      <div lt-state="{a:0, b:0, items:[]}">
+        <button id="batch" lt-click="a += 1; b += 1; items.push('x')">Update</button>
+        <span id="batch-result" lt-text="a + b + items.length"></span>
+      </div>
+    `;
+    Latch.start();
+    (document.querySelector("#batch") as HTMLButtonElement).click();
+    expect(document.querySelector("#batch-result")?.textContent).toBe("3");
+  });
+
+  it("disposes detached global listeners and restores them on rescan", async () => {
+    document.body.innerHTML = '<button id="external" lt-get="/ping" lt-refresh-on="test:ping" lt-swap="none">Ping</button>';
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    Latch.start();
+    const button = document.querySelector("#external") as HTMLButtonElement;
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    button.remove();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    document.body.append(button);
+    Latch.scan(button);
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("debounces repeated auto-submit input events", async () => {
+    document.body.innerHTML = `
+      <form lt-form lt-get="/lookup" lt-target="#lookup-result" lt-submit-on-change lt-debounce="20">
+        <input id="lookup" name="q">
+      </form>
+      <div id="lookup-result"></div>
+    `;
+    const fetchMock = vi.fn(async () => new Response("<p>OK</p>", {
+      status: 200, headers: { "content-type": "text/html" }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    Latch.start();
+    const input = document.querySelector("#lookup") as HTMLInputElement;
+    input.value = "one";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.value = "one two";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("updates inherited state when a reactive subtree moves to a new parent", () => {
+    document.body.innerHTML = `
+      <div id="parent-a" lt-state="{outer:1}">
+        <div id="moved" lt-state="{count:2}">
+          <span id="moved-result" lt-text="outer + count"></span>
+        </div>
+      </div>
+      <div id="parent-b" lt-state="{outer:10}"></div>
+    `;
+    Latch.start();
+    expect(document.querySelector("#moved-result")?.textContent).toBe("3");
+    const moved = document.querySelector("#moved") as HTMLElement;
+    (document.querySelector("#parent-b") as HTMLElement).append(moved);
+    Latch.scan(moved);
+    expect(document.querySelector("#moved-result")?.textContent).toBe("12");
+  });
+
 });
