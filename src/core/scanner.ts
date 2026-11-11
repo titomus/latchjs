@@ -136,8 +136,9 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof
   let hasDirectives = initialized;
   if (!hasDirectives && el.hasAttributes()) {
     const prefix = app.config.prefix + "-";
-    for (const attribute of Array.from(el.attributes)) {
-      if (attribute.name.startsWith(prefix)) {
+    const attributes = el.attributes;
+    for (let index = 0; index < attributes.length; index++) {
+      if (attributes[index].name.startsWith(prefix)) {
         hasDirectives = true;
         break;
       }
