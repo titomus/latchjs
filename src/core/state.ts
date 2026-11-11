@@ -54,6 +54,15 @@ function batchAction<T>(callback: () => T): T {
   }
 }
 
+function notifyHierarchy(scope: Scope): void {
+  // Nested object/array mutations bypass the scope proxy's set trap.
+  // Refresh the nearest scope and all parents so derived totals, keyed lists
+  // and sibling bindings remain in sync.
+  for (let current: Scope | undefined = scope; current; current = current.parent) {
+    current.notify();
+  }
+}
+
 function findOwner(scope: Scope, key: string): Scope {
   if (Object.prototype.hasOwnProperty.call(scope.raw, key)) {
     return scope;
@@ -298,9 +307,9 @@ export function runInScope(
     try {
       return executeExpression(expression, createRuntimeProxy(scope, extras));
     } finally {
-      // Also handles nested mutations such as items.push(), which do not
-      // trigger a direct property write through the scope proxy.
-      scope.notify();
+      // Also handles nested mutations such as items.push() and row.item.done,
+      // which do not trigger a direct property write through the scope proxy.
+      notifyHierarchy(scope);
     }
   });
 }
@@ -313,7 +322,7 @@ export function setModelValue(
 ): void {
   batchAction(() => {
     assignExpression(expression, createRuntimeProxy(scope, extras), value);
-    scope.notify();
+    notifyHierarchy(scope);
   });
 }
 
