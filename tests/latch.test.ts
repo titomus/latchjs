@@ -484,4 +484,54 @@ describe("Latch", () => {
     expect(document.querySelector("#race-table")?.textContent).toBe("READY");
   });
 
+  it("batches multiple mutations and updates text synchronously", () => {
+    document.body.innerHTML = `
+      <div lt-state="{a:0, b:0, items:[]}">
+        <button id="batch" lt-click="a += 1; b += 1; items.push('x')">Update</button>
+        <span id="batch-result" lt-text="a + b + items.length"></span>
+      </div>
+    `;
+    Latch.start();
+    (document.querySelector("#batch") as HTMLButtonElement).click();
+    expect(document.querySelector("#batch-result")?.textContent).toBe("3");
+  });
+
+  it("disposes detached global listeners and restores them on rescan", async () => {
+    document.body.innerHTML = '<button id="external" lt-get="/ping" lt-refresh-on="test:ping" lt-swap="none">Ping</button>';
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    Latch.start();
+    const button = document.querySelector("#external") as HTMLButtonElement;
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    button.remove();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    document.body.append(button);
+    Latch.scan(button);
+    window.dispatchEvent(new Event("test:ping"));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("debounces repeated auto-submit input events", async () => {
+    document.body.innerHTML = `
+      <form lt-form lt-get="/lookup" lt-target="#lookup-result" lt-submit-on-change lt-debounce="20">
+        <input id="lookup" name="q">
+      </form>
+      <div id="lookup-result"></div>
+    `;
+    const fetchMock = vi.fn(async () => new Response("<p>OK</p>", {
+      status: 200, headers: { "content-type": "text/html" }
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    Latch.start();
+    const input = document.querySelector("#lookup") as HTMLInputElement;
+    input.value = "one";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.value = "one two";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  });
+
 });
