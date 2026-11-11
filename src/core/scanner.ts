@@ -223,7 +223,7 @@ function initializeStateDirectives(
         $el: el,
         $store: app.stores
       });
-      scope.notify();
+      // runInScope batches and renders once before returning.
     });
   }
 
@@ -346,7 +346,7 @@ function initializeEventDirectives(
             $el: el,
             $store: app.stores
           });
-          scope.notify();
+          // runInScope batches and renders once before returning.
         }
       });
     }
