@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Explore Latch.js in a complete interactive SaaS-style workspace. State, forms, server-rendered tables, overlays, components, events and HTML swaps with one HTML-first library.">
+<meta name="theme-color" content="#101b30">
+<title>Latch.js | Build dynamic apps with HTML</title>
+<link rel="stylesheet" href="./showcase.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="Primary navigation">
+    <a class="brand" href="./"><span class="brand-mark">L</span><span class="brand-text">Latch<span style="color:#8ef0bf">.js</span></span></a>
+    <div class="nav-label">Explore the library</div>
+    <nav class="nav-list">
+      <a class="active" href="#overview"><span aria-hidden="true">▣</span><span class="hide-small">Overview</span></a>
+      <a href="#contacts"><span aria-hidden="true">▤</span><span class="hide-small">Server interactions</span></a>
+      <a href="#reactivity"><span aria-hidden="true">◇</span><span class="hide-small">Reactive state</span></a>
+      <a href="#components"><span aria-hidden="true">▦</span><span class="hide-small">UI components</span></a>
+      <a href="#patterns"><span aria-hidden="true">⌘</span><span class="hide-small">Code patterns</span></a>
+      <a href="./benchmark.html"><span aria-hidden="true">◫</span><span class="hide-small">Benchmarks</span></a>
+    </nav>
+    <div class="sidebar-bottom"><strong>One library. HTML first.</strong>HTMX-style requests + Alpine-style state, without a SPA or virtual DOM.<p style="margin:12px 0 0"><a href="https://github.com/titomus/latchjs" style="color:#8cf0bd">View source on GitHub ↗</a></p></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumbs">Latch.js <span style="padding:0 8px">/</span> <strong>Interactive showcase</strong></div>
+      <div class="topright"><span><span class="statusdot"></span>Live demo</span><a class="btn btn-outline btn-small" href="./benchmark.html">Compare performance ↗</a><span class="avatar">L</span></div>
+    </header>
+    <main class="content" id="overview">
+      <section class="hero">
+        <div class="hero-main">
+          <span class="eyebrow">Introducing Latch.js</span>
+          <h1>Powerful interfaces.<br>Just HTML.</h1>
+          <p>Not a slideshow. This is a working sample SaaS dashboard, powered by Latch directives. Try the search, create a contact, change a plan, open a drawer and inspect the requests.</p>
+          <div class="hero-actions"><a class="btn btn-light" href="#contacts">Explore the live app ↓</a><a class="btn" style="background:#ffffff20;border:1px solid #ffffff40" href="./benchmark.html">View honest benchmarks</a></div>
+        </div>
+        <div class="hero-note">
+          <div><span class="kicker">The idea</span><h2 style="margin-top:10px">Keep your server.<br>Lose the frontend tax.</h2><p>Declarative requests, local state, accessible components, and a small JavaScript runtime. No framework rewrite required.</p></div>
+          <div><div class="big">lt-*</div><div class="muted">One consistent attribute vocabulary</div></div>
+        </div>
+      </section>
+      <section aria-label="Demo metrics" class="stats">
+        <article class="stat"><span class="name">Demo contacts</span><strong id="metric-contacts">8</strong><span class="delta">↗ Editable with the form below</span></article>
+        <article class="stat"><span class="name">Server requests</span><strong id="metric-requests">0</strong><span class="delta">↗ Live mock HTTP</span></article>
+        <article class="stat"><span class="name">Reactive widgets</span><strong>6</strong><span class="delta">Without a SPA</span></article>
+        <article class="stat"><span class="name">Backend required?</span><strong>PHP ✓</strong><span class="delta">Any HTML-serving backend</span></article>
+      </section>
+      <div class="section-title" id="contacts"><div><span class="kicker">01 / Server-first</span><h2>A real dashboard, not a counter demo</h2><p>Search, filter, paginate, submit, validate and delete records. HTML comes back from a simulated server.</p></div><div class="row"><button class="btn btn-outline btn-small" lt-drawer="./__demo/preview">Open remote drawer</button><button class="btn btn-outline btn-small" lt-modal="#help-dialog">How this works</button></div></div>
+      <div class="main-grid">
+        <section class="panel" lt-table lt-source="./__demo/contacts" lt-target="#contact-results" lt-refresh-on="contact:changed">
+          <div class="panel-head"><div><h3>Contacts</h3><p>A server-rendered table. Query, status, sort and page state stay declarative.</p></div><span class="pill green">● Live HTML</span></div>
+          <div class="searchbar"><input aria-label="Search contacts" lt-table-search placeholder="Search name or company…"><select aria-label="Filter status" lt-table-filter="status"><option value="">All statuses</option><option value="active">Active</option><option value="lead">Lead</option><option value="paused">Paused</option></select><button class="btn btn-outline btn-small" lt-emit="contact:changed">Refresh</button></div>
+          <div id="contact-results" class="table-wrap" aria-live="polite"><p class="hint" style="padding:16px">Loading contacts…</p></div>
+          <details class="top-space"><summary class="hint" style="cursor:pointer">Show HTML used for the table</summary><pre class="code">&lt;section lt-table
+  lt-source="/contacts"
+  lt-target="#results"
+  lt-refresh-on="contact:changed"&gt;
+  &lt;input lt-table-search&gt;
+  &lt;select lt-table-filter="status"&gt;…&lt;/select&gt;
+  &lt;div id="results"&gt;&lt;/div&gt;
+&lt;/section&gt;</pre></details>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><h3>Create a contact</h3><p>Built-in validation, JSON field errors and automatic table refresh.</p></div><span class="pill blue">POST + form</span></div>
+          <form id="contact-form" class="stack" lt-form lt-post="./__demo/contacts" lt-target="#contact-form-success" lt-error-target="#contact-errors" lt-reset-on-success lt-toast-success="Contact created" aria-label="Create a contact">
+            <div id="contact-errors" class="error-box" aria-live="polite"></div>
+            <div class="grid-two"><div class="field"><label for="lead-name">Full name</label><input id="lead-name" name="name" required minlength="2" placeholder="Alex Morgan"><small class="error-text" data-latch-error-for="name"></small></div><div class="field"><label for="lead-company">Company</label><input id="lead-company" name="company" required placeholder="Northstar"><small class="error-text" data-latch-error-for="company"></small></div></div>
+            <div class="grid-two"><div class="field"><label for="lead-email">Email address</label><input id="lead-email" name="email" type="email" required placeholder="alex@example.com"><small class="error-text" data-latch-error-for="email"></small></div><div class="field"><label for="lead-status">Status</label><select name="status" id="lead-status"><option value="lead">Lead</option><option value="active">Active</option><option value="paused">Paused</option></select></div></div>
+            <button class="btn" type="submit">Create contact →</button>
+            <div class="hint" id="contact-form-success" role="status">Try an address ending in @taken.test to see a simulated server validation error.</div>
+          </form>
+        </section>
+      </div>
+      <div class="section-title" id="reactivity"><div><span class="kicker">02 / Local state</span><h2>Alpine-like reactivity, without leaving HTML</h2><p>Try changing the number of seats and toggling annual billing. No network request is involved.</p></div></div>
+      <div class="two-columns">
+        <article class="panel" lt-state="{seats:3, annual:false}">
+          <div class="panel-head"><div><h3>Live pricing configurator</h3><p>State, computed expressions, conditional visibility and click actions.</p></div><span class="pill green">Client-only</span></div>
+          <div class="mini-card"><div class="row" style="justify-content:space-between"><span class="muted">Seats</span><div class="stack-controls"><button class="btn btn-outline btn-small" aria-label="Remove seat" lt-click="seats = seats > 1 ? seats - 1 : seats">−</button><strong style="min-width:23px;text-align:center" lt-text="seats">3</strong><button class="btn btn-outline btn-small" aria-label="Add seat" lt-click="seats += 1">+</button></div></div></div>
+          <div class="row top-space"><button class="btn btn-outline btn-small" lt-click="annual = !annual">Toggle annual billing</button><span class="pill green" lt-show="annual">Annual · save 25%</span><span class="pill blue" lt-show="!annual">Monthly billing</span></div>
+          <div class="top-space"><span class="pricing-number">€<span lt-text="seats * (annual ? 29 : 39)">117</span></span><span class="muted"> / month</span></div>
+          <div class="hint">Updates are calculated from local state using <code>lt-click</code>, <code>lt-text</code> and <code>lt-show</code>.</div>
+          <details class="top-space"><summary class="hint" style="cursor:pointer">View the declarative snippet</summary><pre class="code">&lt;div lt-state="{seats:3,annual:false}"&gt;
+  &lt;button lt-click="seats += 1"&gt;+&lt;/button&gt;
+  &lt;span lt-text="seats"&gt;&lt;/span&gt;
+  &lt;span lt-text="seats * (annual ? 29 : 39)"&gt;&lt;/span&gt;
+&lt;/div&gt;</pre></details>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><div><h3>Debounced live search</h3><p>Real GET requests, with a 250 ms debounce and last-response-wins handling.</p></div><span class="pill blue">GET + debounce</span></div>
+          <label class="field"><span class="sr-only">Search features</span><input id="feature-search" name="q" placeholder="Try ‘modal’ or ‘forms’…" lt-get="./__demo/search" lt-trigger="input delay:250ms" lt-target="#feature-results" aria-label="Search Latch features"></label>
+          <div class="mini-card" id="feature-results">Type to search Latch features…</div>
+          <details class="top-space"><summary class="hint" style="cursor:pointer">View the HTML</summary><pre class="code">&lt;input name="q" lt-get="/search"
+  lt-trigger="input delay:250ms"
+  lt-target="#results"&gt;</pre></details>
+        </article>
+      </div>
+      <div class="section-title" id="components"><div><span class="kicker">03 / Native UI</span><h2>Common interface patterns, ready to use</h2><p>Dropdowns, tabs, accordions, modals, drawers and toasts with keyboard support.</p></div></div>
+      <div class="two-columns">
+        <section class="panel"><div class="panel-head"><div><h3>Tabs &amp; dropdown</h3><p>Composed with HTML attributes instead of custom JS controllers.</p></div><div class="menu" lt-dropdown><button class="btn btn-outline btn-small" lt-dropdown-trigger>Quick actions ▾</button><div lt-dropdown-menu><button lt-toast="Export prepared">Export data</button><button lt-modal="#help-dialog">Open help</button><button lt-toast="Settings saved">Save settings</button></div></div></div>
+          <div lt-tabs="overview"><div class="tabs"><button lt-tab="overview">Overview</button><button lt-tab="code">HTML</button><button lt-tab="accessibility">Accessibility</button></div>
+          <section class="tab-content" lt-panel="overview"><strong>Simple to compose</strong><p class="subheading">Declare a tab group, then pair tab names with panels. Latch handles selection and visibility.</p></section>
+          <section class="tab-content" lt-panel="code"><pre class="code">&lt;div lt-tabs="first"&gt;
+  &lt;button lt-tab="first"&gt;First&lt;/button&gt;
+  &lt;section lt-panel="first"&gt;…&lt;/section&gt;
+&lt;/div&gt;</pre></section>
+          <section class="tab-content" lt-panel="accessibility"><strong>Keyboard-driven UI</strong><p class="subheading">Tab and dropdown primitives include ARIA attributes and keyboard navigation. Accessibility still needs testing in your application.</p></section></div>
+        </section>
+        <section class="panel"><div class="panel-head"><div><h3>Accordion &amp; overlays</h3><p>Open, close, confirm or request remote HTML from a tiny runtime.</p></div><button class="btn btn-outline btn-small" lt-toast="Hello from Latch!">Try toast</button></div>
+          <div class="accordion" lt-accordion><button lt-accordion-trigger="one">Do I need React or a SPA?</button><div lt-accordion-panel="one">No. Latch enhances server-rendered HTML with small local state and progressive interactions.</div><button lt-accordion-trigger="two">Which backends work?</button><div lt-accordion-panel="two">Any server capable of rendering HTML fragments or JSON, including PHP, WordPress, Laravel, Symfony, FlightPHP or Node.</div><button lt-accordion-trigger="three">Is this production ready?</button><div lt-accordion-panel="three">Latch is still in development. Review the security and CSP guidance before production adoption.</div></div>
+          <div class="row top-space"><button class="btn btn-outline btn-small" lt-modal="#help-dialog">Open modal</button><button class="btn btn-outline btn-small" lt-drawer="./__demo/preview">Remote drawer</button></div>
+        </section>
+      </div>
+      <section class="section-title" id="patterns"><div><span class="kicker">04 / Under the hood</span><h2>Inspect what the library is doing</h2><p>Events appear as you create, update and retrieve content. Open DevTools to explore the markup and responses.</p></div></section>
+      <div class="two-columns">
+        <section class="panel"><h3>Live lifecycle events</h3><p class="subheading">Requests, swaps, errors and custom events are visible right here.</p><div id="event-stream" class="events" aria-live="polite">Waiting for actions…</div><div class="top-space row"><button class="btn btn-outline btn-small" id="clear-events" type="button">Clear log</button><button class="btn btn-outline btn-small" lt-toast="No framework required">Show toast</button></div></section>
+        <section class="panel"><h3>What is real here?</h3><ul class="no-list"><li>✓ Latch runtime and its actual attributes</li><li>✓ Client state, forms, table filters, dialogs and swaps</li><li>✓ HTTP-style Responses and error mapping</li><li>✓ Dynamic rescanning after fragment updates</li><li>◌ The backend is simulated in the browser for GitHub Pages</li></ul><div class="callout"><strong>Want the raw numbers?</strong><p>Compare equivalent workloads against pinned versions of HTMX and Alpine on the dedicated benchmark page.</p><a class="btn btn-small top-space" href="./benchmark.html">Open benchmark lab →</a></div></section>
+      </div>
+      <footer class="demo-footer"><div>Latch.js · HTML-first JavaScript, open-source and experimental.</div><div class="row"><a href="./lab.html">Minimal playground</a><a href="./benchmark.html">Performance lab</a><a href="https://github.com/titomus/latchjs">GitHub repository ↗</a></div></footer>
+    </main>
+  </div>
+</div>
+<template id="help-dialog"><div><span class="kicker">Interactive demo</span><h2>How Latch.js works</h2><p class="subheading">The browser reads attributes such as <code>lt-get</code>, <code>lt-state</code> and <code>lt-modal</code>. A PHP backend can send HTML partials, errors and headers without building a SPA.</p><pre class="code">&lt;button lt-get="/contacts" lt-target="#list"&gt;Refresh&lt;/button&gt;</pre><div class="row top-space"><button class="btn" lt-close="modal">Close dialog</button></div></div></template>
+<div lt-toast-container></div>
+<script src="./demo-api.js"></script><script src="./dist/latch.js"></script>
+<script>
+(function(){
+ var L = window.Latch && (window.Latch.start ? window.Latch : window.Latch.Latch);
+ var log = document.getElementById("event-stream");
+ var counter = document.getElementById("metric-requests");
+ var n=0;
+ ["latch:beforeRequest","latch:afterSwap","latch:requestError","contact:changed"].forEach(function(name){
+   window.addEventListener(name,function(){
+     if(name==="latch:beforeRequest"){n++;counter.textContent=String(n);}
+     var stamp=new Date().toLocaleTimeString();
+     log.textContent=(stamp+" · "+name+"\n"+(log.textContent==="Waiting for actions…"?"":log.textContent)).slice(0,1200);
+   });
+ });
+ document.getElementById("clear-events").addEventListener("click",function(){log.textContent="Log cleared";});
+ window.addEventListener("latch:afterSwap",function(){
+   if(window.LatchDemoApi)document.getElementById("metric-contacts").textContent=String(window.LatchDemoApi.contacts().length);
+ });
+ if(L&&L.start)L.start();
+})();
+</script>
+</body></html>
