@@ -46,11 +46,16 @@ interface TableState {
 export function scanTree(app: ScannerApp, root: ParentNode): void {
   app.emit("latch:beforeScan", { root });
 
+  // walk() already visits descendants and propagates the nearest reactive scope.
+  // Walking every descendant again made a full scan quadratic and could
+  // initialize nested scopes against the wrong parent.
   if (root instanceof HTMLElement) {
     walk(app, root, getScope(root));
+  } else {
+    for (const child of Array.from(root.children)) {
+      if (child instanceof HTMLElement) walk(app, child, getScope(child));
+    }
   }
-
-  root.querySelectorAll<HTMLElement>("*").forEach((el) => walk(app, el, getScope(el)));
 
   app.emit("latch:afterScan", { root });
 }

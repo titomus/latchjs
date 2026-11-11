@@ -390,4 +390,30 @@ describe("Latch", () => {
       expect(Latch.store("plugin:lastAction")).toBe("archive sprint");
     });
   });
+  it("scans nested state scopes once and keeps parent state available", () => {
+    document.body.innerHTML = `
+      <div lt-state="{parentCount: 2}">
+        <div lt-state="{childCount: 3}">
+          <span id="nested-value" lt-text="parentCount + childCount"></span>
+          <button id="nested-inc" lt-click="childCount += 1">Increment</button>
+        </div>
+      </div>
+    `;
+    Latch.start();
+    expect(document.querySelector("#nested-value")?.textContent).toBe("5");
+    (document.querySelector("#nested-inc") as HTMLButtonElement).click();
+    expect(document.querySelector("#nested-value")?.textContent).toBe("6");
+  });
+
+  it("scans a detached fragment after insertion without duplicate initialization", () => {
+    document.body.innerHTML = '<div id="host"></div>';
+    Latch.start();
+    const host = document.querySelector("#host") as HTMLElement;
+    host.innerHTML = '<div lt-state="{count:0}"><button id="once" lt-click="count += 1">+</button><span id="once-value" lt-text="count"></span></div>';
+    Latch.scan(host);
+    Latch.scan(host);
+    (document.querySelector("#once") as HTMLButtonElement).click();
+    expect(document.querySelector("#once-value")?.textContent).toBe("1");
+  });
+
 });
