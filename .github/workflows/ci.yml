@@ -30,3 +30,12 @@ jobs:
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install chromium
       - run: npm run test:pages
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: latch-benchmark-samples-${{ github.sha }}
+          path: |
+            benchmark-artifacts/
+            _site/benchmark-metadata.json
+          if-no-files-found: ignore
+          retention-days: 30
