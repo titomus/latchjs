@@ -30,6 +30,68 @@ const requestAttributes = ["get", "post", "put", "patch", "delete"] as const;
 let beforeUnloadBound = false;
 const tableStateByRoot = new WeakMap<HTMLElement, TableState>();
 
+interface ExternalBinding {
+  connect: () => () => void;
+  release?: () => void;
+}
+const externalBindings = new WeakMap<HTMLElement, ExternalBinding[]>();
+let detachObserver: MutationObserver | undefined;
+
+// Observe only removals, not every DOM read or reactive update.
+function observeDetachments(): void {
+  if (detachObserver || typeof MutationObserver === "undefined" || !document.documentElement) return;
+  detachObserver = new MutationObserver((records) => {
+    const removed: Element[] = [];
+    for (const record of records) {
+      for (const node of Array.from(record.removedNodes)) {
+        if (node instanceof Element) removed.push(node);
+      }
+    }
+    if (!removed.length) return;
+    queueMicrotask(() => {
+      for (const root of removed) {
+        // Moving a node in the same turn must not disable its subscriptions.
+        if (root.isConnected) continue;
+        detachExternal(root);
+        root.querySelectorAll("*").forEach(detachExternal);
+      }
+    });
+  });
+  detachObserver.observe(document.documentElement, { childList: true, subtree: true });
+}
+
+function detachExternal(element: Element): void {
+  for (const binding of externalBindings.get(element as HTMLElement) ?? []) {
+    binding.release?.();
+    binding.release = undefined;
+  }
+}
+
+function restoreExternal(element: HTMLElement): void {
+  for (const binding of externalBindings.get(element) ?? []) {
+    if (!binding.release) binding.release = binding.connect();
+  }
+}
+
+function registerExternal(element: HTMLElement, connect: () => () => void): void {
+  observeDetachments();
+  const bindings = externalBindings.get(element) ?? [];
+  bindings.push({ connect, release: connect() });
+  externalBindings.set(element, bindings);
+}
+
+function listenExternal(
+  owner: HTMLElement,
+  target: Window | Document,
+  event: string,
+  listener: EventListener
+): void {
+  registerExternal(owner, () => {
+    target.addEventListener(event, listener);
+    return () => target.removeEventListener(event, listener);
+  });
+}
+
 interface TableState {
   root: HTMLElement;
   source: string;
@@ -79,6 +141,10 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): vo
   if (!initialized) {
     initializeElement(app, el, scope);
     initializedElements.add(el);
+  } else {
+    // Restores subscriptions when a previously detached node is reinserted
+    // and scanned again, without duplicating its element-local handlers.
+    restoreExternal(el);
   }
 
   for (const child of Array.from(el.children)) {
@@ -159,7 +225,7 @@ function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
 
   if (refreshOn) {
     for (const eventName of refreshOn.split(/\s+/).filter(Boolean)) {
-      window.addEventListener(eventName, () => {
+      listenExternal(el, window, eventName, () => {
         void runner();
       });
     }
@@ -174,28 +240,33 @@ function initializeRequestElement(app: ScannerApp, el: HTMLElement): void {
     }
 
     if (trigger.type === "every") {
-      window.setInterval(() => {
-        void runner();
-      }, trigger.delayMs ?? 1000);
+      registerExternal(el, () => {
+        const timer = window.setInterval(() => {
+          void runner();
+        }, trigger.delayMs ?? 1000);
+        return () => window.clearInterval(timer);
+      });
       continue;
     }
 
     if (trigger.type === "event") {
-      window.addEventListener(trigger.value, (event) => {
+      listenExternal(el, window, trigger.value, (event) => {
         void runner(event);
       });
       continue;
     }
 
     if (trigger.type === "intersect") {
-      const observer = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          void runner();
-          observer.disconnect();
-        }
+      registerExternal(el, () => {
+        const observer = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            void runner();
+            observer.disconnect();
+          }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
       });
-
-      observer.observe(el);
       continue;
     }
 
@@ -346,7 +417,7 @@ function initializeEventDirectives(
     const [eventName, action] = onExpression.split("->").map((value) => value.trim());
 
     if (eventName && action) {
-      window.addEventListener(eventName, (event) => {
+      listenExternal(el, window, eventName, (event) => {
         if (action === "refresh") {
           void createRequestRunner(app, el)();
           return;
@@ -1134,14 +1205,14 @@ function initializeDropdown(app: ScannerApp, root: HTMLElement): void {
     }
   });
 
-  document.addEventListener("click", (event) => {
+  listenExternal(root, document, "click", (event) => {
     if (!root.contains(event.target as Node)) {
       close();
     }
   });
 
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
+  listenExternal(root, window, "keydown", (event) => {
+    if ((event as KeyboardEvent).key === "Escape") {
       close(true);
     }
   });
@@ -1458,7 +1529,7 @@ function initializeTable(app: ScannerApp, root: HTMLElement): void {
   });
 
   for (const eventName of state.refreshOn) {
-    window.addEventListener(eventName, () => {
+    listenExternal(root, window, eventName, () => {
       void loadTable(app, state);
     });
   }
