@@ -1,6 +1,7 @@
 import type { DirectiveInstaller, LatchConfig, RequestOptions } from "../types";
 import { attributeName } from "./config";
 import { bindScope, createScope, detachScope, getScope, relinkScope, runInScope, setModelValue } from "./state";
+import { evaluateExpression } from "./evaluator";
 import { handleResponse } from "./request";
 
 interface ScannerApp {
@@ -149,14 +150,17 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope?: ReturnType<typeof
     : null;
   // A swapped parent's rescan must reuse its scope: recreating it resets
   // local state and can even make the scope its own parent.
+  const ownScope = getScope(el);
   const scope = initialized
-    ? getScope(el) ?? currentScope
+    ? ownScope ?? currentScope
     : stateExpression
       ? createScope(el, stateExpression, currentScope, {
           $el: el,
           $store: app.stores
         })
-      : currentScope;
+      : ownScope?.root === el
+        ? ownScope
+        : currentScope;
 
   if (initialized && stateExpression && scope?.root === el && scope !== currentScope && scope.parent !== currentScope) {
     relinkScope(scope, currentScope);
@@ -322,6 +326,11 @@ function initializeStateDirectives(
     return;
   }
 
+  if (el instanceof HTMLTemplateElement && el.hasAttribute(attributeName(app.config.prefix, "for"))) {
+    initializeRepeat(app, el, scope);
+    return;
+  }
+
   const clickExpression = el.getAttribute(attributeName(app.config.prefix, "click"));
 
   if (clickExpression) {
@@ -384,6 +393,104 @@ function initializeStateDirectives(
     el.addEventListener("input", update);
     el.addEventListener("change", update);
   }
+}
+
+/**
+ * A repeat template has exactly one root element, just like Alpine x-for.
+ * Keys preserve existing DOM nodes, event listeners and local child state
+ * while items are inserted, removed or reordered.
+ */
+function initializeRepeat(
+  app: ScannerApp,
+  template: HTMLTemplateElement,
+  parentScope: NonNullable<ReturnType<typeof getScope>>
+): void {
+  const raw = template.getAttribute(attributeName(app.config.prefix, "for")) ?? "";
+  const match = raw.match(/^\\s*(?:\\(\\s*([a-zA-Z_$][\\w$]*)\\s*(?:,\\s*([a-zA-Z_$][\\w$]*))?\\s*\\)|([a-zA-Z_$][\\w$]*))\\s+(?:in|of)\\s+(.+?)\\s*$/);
+  if (!match) {
+    app.emit("latch:repeatError", { template, error: "Expected 'item in items' or '(item, index) in items'" });
+    return;
+  }
+  if (template.content.children.length !== 1) {
+    app.emit("latch:repeatError", { template, error: "A lt-for template must contain exactly one root element" });
+    return;
+  }
+
+  const itemName = match[1] ?? match[3];
+  const indexName = match[2] ?? "$index";
+  const listExpression = match[4];
+  const keyExpression = template.getAttribute(attributeName(app.config.prefix, "key"));
+  type Row = { root: HTMLElement; scope: NonNullable<ReturnType<typeof getScope>> };
+  const rows = new Map<unknown, Row>();
+
+  const keyFor = (item: unknown, index: number): unknown => {
+    if (!keyExpression) return index;
+    const locals = new Proxy({}, {
+      has: () => true,
+      get: (_, prop: string | symbol) => {
+        if (prop === itemName) return item;
+        if (prop === indexName || prop === "$index") return index;
+        if (typeof prop === "string") return parentScope.proxy[prop];
+        return undefined;
+      }
+    });
+    return evaluateExpression<unknown>(keyExpression, locals);
+  };
+
+  bindScope(parentScope, {
+    el: template,
+    kind: "for",
+    expression: listExpression,
+    update(value: unknown) {
+      const host = template.parentNode;
+      if (!host) return;
+      const items = Array.isArray(value) ? value : [];
+      const nextKeys = new Set<unknown>();
+      const wanted: Array<{ item: unknown; index: number; key: unknown }> = [];
+      for (let index = 0; index < items.length; index++) {
+        const item = items[index];
+        const key = keyFor(item, index);
+        if (nextKeys.has(key)) {
+          app.emit("latch:repeatError", { template, error: "Duplicate lt-key", key });
+          return;
+        }
+        nextKeys.add(key);
+        wanted.push({ item, index, key });
+      }
+
+      for (const [key, row] of rows) {
+        if (!nextKeys.has(key)) {
+          row.root.remove();
+          rows.delete(key);
+          relinkScope(row.scope, undefined);
+        }
+      }
+
+      let reference: Node = template;
+      for (let index = wanted.length - 1; index >= 0; index--) {
+        const entry = wanted[index];
+        let row = rows.get(entry.key);
+        if (!row) {
+          const element = template.content.firstElementChild?.cloneNode(true);
+          if (!(element instanceof HTMLElement)) continue;
+          const scope = createScope(element, "{}", parentScope, { $el: element, $store: app.stores });
+          row = { root: element, scope };
+          rows.set(entry.key, row);
+          scope.raw[itemName] = entry.item;
+          scope.raw[indexName] = entry.index;
+          if (indexName !== "$index") scope.raw.$index = entry.index;
+          host.insertBefore(element, reference);
+          app.scan(element);
+        } else {
+          row.scope.raw[itemName] = entry.item;
+          row.scope.raw[indexName] = entry.index;
+          if (indexName !== "$index") row.scope.raw.$index = entry.index;
+          if (row.root.nextSibling !== reference) host.insertBefore(row.root, reference);
+        }
+        reference = row.root;
+      }
+    }
+  });
 }
 
 function bindStateDirective(
