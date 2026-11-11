@@ -35,7 +35,7 @@ jobs:
         with:
           name: latch-benchmark-samples-${{ github.sha }}
           path: |
-            benchmark-artifacts/
+            test-results/
             _site/benchmark-metadata.json
           if-no-files-found: ignore
           retention-days: 30
