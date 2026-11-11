@@ -571,4 +571,83 @@ describe("Latch", () => {
     expect(label.textContent).toBe("1");
   });
 
+  it("renders keyed lt-for rows and retains DOM identity across reorders", () => {
+    document.body.innerHTML = `
+      <ul lt-state="{items:[{id:1,name:'First'},{id:2,name:'Second'}]}">
+        <button id="reorder" lt-click="items = [items[1],items[0]]">Reorder</button>
+        <button id="add-row" lt-click="items = [...items, {id:3,name:'Third'}]">Add</button>
+        <button id="delete-row" lt-click="items = items.filter(item => item.id !== 2)">Delete</button>
+        <template lt-for="item in items" lt-key="item.id">
+          <li lt-bind:data-key="item.id"><span lt-text="item.name"></span></li>
+        </template>
+      </ul>
+    `;
+    Latch.start();
+    const rows = () => Array.from(document.querySelectorAll<HTMLLIElement>("li"));
+    expect(rows().map((el) => el.textContent)).toEqual(["First", "Second"]);
+    const first = rows()[0];
+    (document.querySelector("#reorder") as HTMLButtonElement).click();
+    expect(rows().map((el) => el.textContent)).toEqual(["Second", "First"]);
+    expect(rows()[1]).toBe(first);
+
+    (document.querySelector("#add-row") as HTMLButtonElement).click();
+    expect(rows().map((el) => el.textContent)).toEqual(["Second", "First", "Third"]);
+    (document.querySelector("#delete-row") as HTMLButtonElement).click();
+    expect(rows().map((el) => el.textContent)).toEqual(["First", "Third"]);
+  });
+
+  it("supports index aliases and interactive controls inside repeated rows", () => {
+    document.body.innerHTML = `
+      <div lt-state="{todos:[{id:1,done:false},{id:2,done:false}]}">
+        <template lt-for="(todo, index) in todos" lt-key="todo.id">
+          <div class="task"><button lt-click="todo.done = !todo.done">Toggle</button>
+            <span lt-text="index"></span><span lt-text="todo.done ? 'Yes' : 'No'"></span>
+          </div>
+        </template>
+      </div>
+    `;
+    Latch.start();
+    const row = document.querySelector(".task") as HTMLElement;
+    expect(row.textContent).toContain("0No");
+    (row.querySelector("button") as HTMLButtonElement).click();
+    expect(row.textContent).toContain("0Yes");
+    expect(document.querySelectorAll(".task")).toHaveLength(2);
+  });
+
+  it("preserves a model input cursor when an unrelated state binding refreshes", () => {
+    document.body.innerHTML = `
+      <div lt-state="{name:'ABCD', count:0}">
+        <input id="model-focus" lt-model="name">
+        <button id="model-other" lt-click="count++">Click</button>
+        <span lt-text="count"></span>
+      </div>
+    `;
+    Latch.start();
+    const input = document.querySelector("#model-focus") as HTMLInputElement;
+    input.focus();
+    input.setSelectionRange(2,2);
+    (document.querySelector("#model-other") as HTMLButtonElement).click();
+    expect(input.value).toBe("ABCD");
+    expect(input.selectionStart).toBe(2);
+  });
+
+  it("syncs a repeated checkbox model and parent derived totals", () => {
+    document.body.innerHTML = `
+      <div lt-state="{tasks:[{id:1,done:false},{id:2,done:false}]}">
+        <strong id="unfinished" lt-text="tasks.filter(t=>!t.done).length"></strong>
+        <template lt-for="task in tasks" lt-key="task.id">
+          <label class="repeated-model"><input type="checkbox" lt-model="task.done"><span lt-text="task.done ? 'Done' : 'Open'"></span></label>
+        </template>
+      </div>
+    `;
+    Latch.start();
+    expect(document.querySelector("#unfinished")?.textContent).toBe("2");
+    const first = document.querySelector(".repeated-model input") as HTMLInputElement;
+    first.checked = true;
+    first.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(first.checked).toBe(true);
+    expect(document.querySelector(".repeated-model span")?.textContent).toBe("Done");
+    expect(document.querySelector("#unfinished")?.textContent).toBe("1");
+  });
+
 });

@@ -13,7 +13,7 @@ function compile(mode: "read" | "execute" | "assign", expression: string): Compi
     ? `with ($scope) { return (${expression}); }`
     : mode === "execute"
       ? `with ($scope) { ${expression}; return undefined; }`
-      : `with ($scope) { ${expression} = $value; }`;
+      : `with ($scope) { ${expression} = this.__latchValue; }`;
   const compiled = new Function("$scope", "$value", source) as Compiled;
   if (expressionCache.size >= CACHE_LIMIT) {
     const oldest = expressionCache.keys().next().value;
@@ -32,5 +32,8 @@ export function executeExpression(expression: string, scope: object): unknown {
 }
 
 export function assignExpression(expression: string, scope: object, value: unknown): void {
-  compile("assign", expression)(scope, value);
+  // The scope proxy intentionally reports all names as present, which
+  // shadows ordinary function parameters inside `with`. Pass the model value
+  // through `this`, which lexical name resolution cannot shadow.
+  compile("assign", expression).call({ __latchValue: value }, scope, value);
 }

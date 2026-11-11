@@ -2,9 +2,11 @@ import { assignExpression, evaluateExpression, executeExpression } from "./evalu
 
 export interface ScopeBinding {
   el: HTMLElement;
-  kind: "show" | "if" | "text" | "html" | "class" | "bind" | "model";
+  kind: "show" | "if" | "text" | "html" | "class" | "bind" | "model" | "for";
   expression: string;
   arg?: string;
+  /** Keyed repetition callback, owned by the directive installer. */
+  update?: (value: unknown) => void;
   appliedClasses?: string[];
 }
 
@@ -49,6 +51,15 @@ function batchAction<T>(callback: () => T): T {
         if (!parent) renderScope(scope);
       }
     }
+  }
+}
+
+function notifyHierarchy(scope: Scope): void {
+  // Nested object/array mutations bypass the scope proxy's set trap.
+  // Refresh the nearest scope and all parents so derived totals, keyed lists
+  // and sibling bindings remain in sync.
+  for (let current: Scope | undefined = scope; current; current = current.parent) {
+    current.notify();
   }
 }
 
@@ -124,13 +135,19 @@ function applyBinding(scope: Scope, binding: ScopeBinding): void {
   const value = evaluateExpression<unknown>(binding.expression, scope.proxy);
 
   switch (binding.kind) {
+    case "for": {
+      binding.update?.(value);
+      break;
+    }
     case "show":
     case "if": {
-      binding.el.hidden = !Boolean(value);
+      const hidden = !Boolean(value);
+      if (binding.el.hidden !== hidden) binding.el.hidden = hidden;
       break;
     }
     case "text": {
-      binding.el.textContent = value == null ? "" : String(value);
+      const text = value == null ? "" : String(value);
+      if (binding.el.textContent !== text) binding.el.textContent = text;
       break;
     }
     case "html": {
@@ -210,12 +227,14 @@ function syncModel(el: HTMLElement, value: unknown): void {
       return;
     }
 
-    el.value = value == null ? "" : String(value);
+    const next = value == null ? "" : String(value);
+    if (el.value !== next) el.value = next;
     return;
   }
 
   if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-    el.value = value == null ? "" : String(value);
+    const next = value == null ? "" : String(value);
+    if (el.value !== next) el.value = next;
   }
 }
 
@@ -288,9 +307,9 @@ export function runInScope(
     try {
       return executeExpression(expression, createRuntimeProxy(scope, extras));
     } finally {
-      // Also handles nested mutations such as items.push(), which do not
-      // trigger a direct property write through the scope proxy.
-      scope.notify();
+      // Also handles nested mutations such as items.push() and row.item.done,
+      // which do not trigger a direct property write through the scope proxy.
+      notifyHierarchy(scope);
     }
   });
 }
@@ -303,7 +322,7 @@ export function setModelValue(
 ): void {
   batchAction(() => {
     assignExpression(expression, createRuntimeProxy(scope, extras), value);
-    scope.notify();
+    notifyHierarchy(scope);
   });
 }
 
