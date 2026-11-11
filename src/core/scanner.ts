@@ -139,8 +139,9 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): vo
         })
       : currentScope;
 
-  if (initialized && stateExpression && scope?.root === el) {
+  if (initialized && stateExpression && scope?.root === el && scope.parent !== currentScope) {
     relinkScope(scope, currentScope);
+    scope.notify();
   }
 
   if (!initialized) {
