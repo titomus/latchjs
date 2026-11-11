@@ -19,3 +19,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: |
+          mkdir -p _site/dist
+          cp docs/index.html _site/index.html
+          cp dist/latch.js _site/dist/latch.js
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:pages
