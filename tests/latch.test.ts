@@ -631,4 +631,23 @@ describe("Latch", () => {
     expect(input.selectionStart).toBe(2);
   });
 
+  it("syncs a repeated checkbox model and parent derived totals", () => {
+    document.body.innerHTML = `
+      <div lt-state="{tasks:[{id:1,done:false},{id:2,done:false}]}">
+        <strong id="unfinished" lt-text="tasks.filter(t=>!t.done).length"></strong>
+        <template lt-for="task in tasks" lt-key="task.id">
+          <label class="repeated-model"><input type="checkbox" lt-model="task.done"><span lt-text="task.done ? 'Done' : 'Open'"></span></label>
+        </template>
+      </div>
+    `;
+    Latch.start();
+    expect(document.querySelector("#unfinished")?.textContent).toBe("2");
+    const first = document.querySelector(".repeated-model input") as HTMLInputElement;
+    first.checked = true;
+    first.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(first.checked).toBe(true);
+    expect(document.querySelector(".repeated-model span")?.textContent).toBe("Done");
+    expect(document.querySelector("#unfinished")?.textContent).toBe("1");
+  });
+
 });
