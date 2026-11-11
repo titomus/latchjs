@@ -44,7 +44,9 @@ function observeDetachments(): void {
     const removed: HTMLElement[] = [];
     for (const record of records) {
       for (const node of Array.from(record.removedNodes)) {
-        if (node instanceof HTMLElement) removed.push(node);
+        // nodeType does not rely on global DOM constructors that jsdom may
+        // remove during test teardown while MutationObserver is still queued.
+        if (node.nodeType === 1) removed.push(node as HTMLElement);
       }
     }
     if (!removed.length) return;
