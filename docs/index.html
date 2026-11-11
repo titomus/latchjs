@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Latch.js | Interactive playground</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#eaf0ff;background:#0b1020}*{box-sizing:border-box}body{margin:0}main{max-width:1080px;margin:auto;padding:54px 22px}h1{font-size:clamp(2.5rem,7vw,5rem);letter-spacing:-.06em;margin:0}p{color:#aab7d3;line-height:1.6}.tag{color:#81e6c6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:30px}.panel{background:#171e33;border:1px solid #303b56;border-radius:18px;padding:24px}button,input{font:inherit;border-radius:9px;padding:11px 14px}button{border:0;background:#80e4c2;color:#10251e;font-weight:700;cursor:pointer}button.secondary{background:#33415e;color:white}input{background:#0b1020;color:white;border:1px solid #475574;max-width:100%}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.number{font-size:3rem;font-weight:800}.result{background:#0b1020;border-radius:9px;padding:12px;min-height:50px}a{color:#80e4c2}small{color:#9aabc9}
+</style>
+</head>
+<body><main>
+<p class="tag">HTML-first · Server-first · Zero SPA</p><h1>Latch.js playground</h1>
+<p>Try reactive state, conditional rendering, server-style HTML swaps, and DOM lifecycle in a single lightweight runtime. The request endpoint below is mocked locally so this demo works on static GitHub Pages.</p>
+<div class="grid">
+<section class="panel" lt-state="{count:0,visible:true}">
+<h2>Local state</h2><div class="number" lt-text="count">0</div>
+<div class="row"><button lt-click="count += 1">Increment</button><button class="secondary" lt-click="count = 0">Reset</button><button class="secondary" lt-click="visible = !visible">Toggle</button></div>
+<p lt-show="visible">Reactive visibility without a framework component.</p>
+</section>
+<section class="panel"><h2>Server-driven swaps</h2>
+<p>Fetch a fragment, replace only the target, and rescan new directives.</p>
+<button lt-get="./demo/fragment" lt-target="#fragment" lt-swap="innerHTML">Fetch HTML fragment</button>
+<div class="result" id="fragment" aria-live="polite">Waiting for a request…</div>
+</section>
+<section class="panel"><h2>Notifications</h2>
+<p>Built-in UI primitives and lifecycle events.</p><button lt-toast="Latch.js is running!">Show toast</button>
+<div lt-toast-container></div>
+</section>
+<section class="panel"><h2>Lifecycle</h2><p>Watch Latch requests and swaps as they happen.</p><div class="result" id="events" aria-live="polite">No events yet</div></section>
+</div>
+<p><small>GitHub Pages is a static host. This demo mocks one endpoint. For real server-driven CRUD, use Latch with a PHP or other HTTP backend.</small></p>
+<p><a href="https://github.com/titomus/latchjs">Source code and documentation</a></p>
+</main>
+<script src="./dist/latch.js"></script>
+<script>
+(function(){
+ const nativeFetch=window.fetch.bind(window);
+ window.fetch=function(input,init){
+  if(new URL(String(input),location.href).pathname.endsWith("/demo/fragment")){
+   const stamp=new Date().toLocaleTimeString();
+   return Promise.resolve(new Response('<div lt-state="{clicks:0}"><strong>Server fragment at '+stamp+'</strong><p>Nested state is active after swap.</p><button lt-click="clicks += 1">Clicks: <span lt-text="clicks">0</span></button></div>',{status:200,headers:{"content-type":"text/html"}}));
+  }
+  return nativeFetch(input,init);
+ };
+ let count=0;
+ for(const name of ["latch:beforeRequest","latch:afterSwap"]){
+  window.addEventListener(name,()=>{document.getElementById("events").textContent=(++count)+" · "+name;});
+ }
+ if(window.Latch && typeof window.Latch.start==="function"){window.Latch.start();}
+ else{document.getElementById("events").textContent="Bundle missing: build and deploy GitHub Pages.";}
+})();
+</script>
+</body></html>
