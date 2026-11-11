@@ -85,9 +85,12 @@
   fetch("./benchmark-metadata.json").then(function(r){if(!r.ok)throw Error("missing");return r.json();}).then(function(meta){
     report.versions=meta.versions;
     var container=get("size-metrics");
-    container.innerHTML=["latch","htmx","alpine"].map(function(key){
+    var metrics=["latch","htmx","alpine"].map(function(key){
       var bytes=meta.bytes[key]||{},compressed=bytes.gzip||0;
       return '<div class="metric"><strong>'+((compressed/1024)||0).toFixed(1)+' KB</strong><small>'+escape(names[key])+' '+escape(meta.versions[key])+' · gzip</small></div>';
-    }).join("");
+    });
+    var combined=(meta.bytes.htmx.gzip||0)+(meta.bytes.alpine.gzip||0);
+    metrics.push('<div class="metric"><strong>'+(combined/1024).toFixed(1)+' KB</strong><small>HTMX + Alpine combined · gzip</small></div>');
+    container.innerHTML=metrics.join("");
   }).catch(function(){get("size-metrics").textContent="Size metadata unavailable. Check the Pages build."});
 })();
