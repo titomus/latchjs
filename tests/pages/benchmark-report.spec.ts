@@ -1,8 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-
-test("capture comparative runtime samples for CI artifact", async ({ page }) => {
+test("capture comparative runtime samples for CI artifact", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await page.goto("/benchmark.html");
   await expect(page.locator("#size-metrics")).toContainText("HTMX");
@@ -22,12 +19,12 @@ test("capture comparative runtime samples for CI artifact", async ({ page }) => 
     page.waitForEvent("download"),
     page.locator("#download-results").click()
   ]);
-  const outputDir = path.resolve("benchmark-artifacts");
-  mkdirSync(outputDir, { recursive: true });
-  const file = path.join(outputDir, "comparison-samples.json");
-  await download.saveAs(file);
-
-  const result = JSON.parse(readFileSync(file, "utf8"));
+  expect(download.suggestedFilename()).toMatch(/^latch-comparison-.*\.json$/);
+  const result = await page.evaluate(() => (window as unknown as { LatchBenchmarkReport: any }).LatchBenchmarkReport);
+  await testInfo.attach("comparison-samples", {
+    body: JSON.stringify(result, null, 2),
+    contentType: "application/json"
+  });
   expect(result.versions.latch).toBeTruthy();
   expect(result.versions.htmx).toBe("2.0.11");
   expect(result.versions.alpine).toBe("3.17.5");
