@@ -326,9 +326,15 @@ function initializeStateDirectives(
     return;
   }
 
-  if (el instanceof HTMLTemplateElement && el.hasAttribute(attributeName(app.config.prefix, "for"))) {
-    initializeRepeat(app, el, scope);
-    return;
+  if (el instanceof HTMLTemplateElement) {
+    if (el.hasAttribute(attributeName(app.config.prefix, "for"))) {
+      initializeRepeat(app, el, scope);
+      return;
+    }
+    if (el.hasAttribute(attributeName(app.config.prefix, "when"))) {
+      initializeWhen(app, el, scope);
+      return;
+    }
   }
 
   // Initializers run once after the synchronous DOM scan, when descendants
@@ -538,6 +544,42 @@ function initializeRepeat(
           if (row.root.nextSibling !== reference) host.insertBefore(row.root, reference);
         }
         reference = row.root;
+      }
+    }
+  });
+}
+
+/** Conditionally mount a real subtree; lt-if remains a visibility-only alias. */
+function initializeWhen(
+  app: ScannerApp,
+  template: HTMLTemplateElement,
+  scope: NonNullable<ReturnType<typeof getScope>>
+): void {
+  const expression = template.getAttribute(attributeName(app.config.prefix, "when"));
+  if (!expression) return;
+  if (template.content.children.length !== 1) {
+    app.emit("latch:conditionalError", { template, error: "A lt-when template must contain exactly one root element" });
+    return;
+  }
+  let mounted: HTMLElement | undefined;
+  bindScope(scope, {
+    el: template,
+    kind: "when",
+    expression,
+    update(value: unknown) {
+      if (Boolean(value)) {
+        if (mounted?.isConnected) return;
+        const parent = template.parentNode;
+        const element = template.content.firstElementChild?.cloneNode(true);
+        if (!parent || !(element instanceof HTMLElement)) return;
+        parent.insertBefore(element, template);
+        mounted = element;
+        app.scan(element);
+        return;
+      }
+      if (mounted) {
+        mounted.remove();
+        mounted = undefined;
       }
     }
   });
