@@ -95,6 +95,27 @@
   lt-target="#results"&gt;</pre></details>
         </article>
       </div>
+      <section class="panel top-space" id="repeated-tasks" lt-state="{nextId:4,tasks:[{id:1,label:'Publish the landing page',done:true},{id:2,label:'Benchmark the interaction',done:false},{id:3,label:'Ship the update',done:false}]}">
+        <div class="panel-head"><div><span class="kicker">Reactive collections</span><h3>Interactive task list with keyed DOM reuse</h3><p>Add, check, reorder and remove tasks. Latch preserves DOM identity by `lt-key` without a virtual DOM.</p></div><span class="pill green">lt-for</span></div>
+        <div class="row"><button class="btn btn-small" id="task-add" lt-click="tasks = [...tasks,{id:nextId,label:'New task '+nextId,done:false}]; nextId += 1">Add a task +</button>
+          <button class="btn btn-outline btn-small" id="task-reverse" lt-click="tasks = tasks.slice().reverse()">Reverse list</button>
+          <span class="muted">Open tasks: <strong id="task-open-count" lt-text="tasks.filter(t=>!t.done).length">2</strong></span>
+        </div>
+        <ul class="no-list" style="margin-top:16px" id="task-list">
+          <template lt-for="(task,index) in tasks" lt-key="task.id">
+            <li class="row" style="justify-content:space-between" lt-bind:data-task-id="task.id">
+              <label class="row"><input type="checkbox" lt-model="task.done"><span lt-text="task.label">Task</span></label>
+              <button class="text-link danger" lt-click="tasks = tasks.filter(t=>t.id!==task.id)">Remove</button>
+            </li>
+          </template>
+        </ul>
+        <details class="top-space"><summary class="hint" style="cursor:pointer">View the markup</summary><pre class="code">&lt;template lt-for="(task,index) in tasks" lt-key="task.id"&gt;
+  &lt;li&gt;
+    &lt;input type="checkbox" lt-model="task.done"&gt;
+    &lt;span lt-text="task.label"&gt;&lt;/span&gt;
+  &lt;/li&gt;
+&lt;/template&gt;</pre></details>
+      </section>
       <div class="section-title" id="components"><div><span class="kicker">03 / Native UI</span><h2>Common interface patterns, ready to use</h2><p>Dropdowns, tabs, accordions, modals, drawers and toasts with keyboard support.</p></div></div>
       <div class="two-columns">
         <section class="panel"><div class="panel-head"><div><h3>Tabs &amp; dropdown</h3><p>Composed with HTML attributes instead of custom JS controllers.</p></div><div class="menu" lt-dropdown><button class="btn btn-outline btn-small" lt-dropdown-trigger>Quick actions ▾</button><div lt-dropdown-menu><button lt-toast="Export prepared">Export data</button><button lt-modal="#help-dialog">Open help</button><button lt-toast="Settings saved">Save settings</button></div></div></div>
