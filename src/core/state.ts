@@ -222,6 +222,10 @@ function syncModel(el: HTMLElement, value: unknown): void {
 // Detach scopes without deleting their state: an element moved and scanned
 // again can keep its local data and inherit its new parent scope.
 export function relinkScope(scope: Scope, parent?: Scope): void {
+  // Scope parent graphs must remain acyclic, even after unusual DOM moves.
+  for (let ancestor = parent; ancestor; ancestor = ancestor.parent) {
+    if (ancestor === scope) return;
+  }
   if (scope.parent === parent) return;
   scope.parent?.children.delete(scope);
   scope.parent = parent;
