@@ -53,3 +53,26 @@ test("showcase: local reactive pricing, tabs, modal, drawer and toasts", async (
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+
+test("showcase: keyed tasks can be added, reordered, toggled and removed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/");
+  await expect(page.locator("#task-list li")).toHaveCount(3);
+  await expect(page.locator("#task-open-count")).toHaveText("2");
+
+  await page.locator("#task-add").click();
+  await expect(page.locator("#task-list li")).toHaveCount(4);
+  await expect(page.locator("#task-open-count")).toHaveText("3");
+
+  await page.locator("#task-reverse").click();
+  await expect(page.locator("#task-list li").first()).toContainText("New task 4");
+  await page.locator("#task-list li").first().locator("input[type=checkbox]").check();
+  await expect(page.locator("#task-open-count")).toHaveText("2");
+
+  await page.locator("#task-list li").first().getByRole("button", { name: "Remove" }).click();
+  await expect(page.locator("#task-list li")).toHaveCount(3);
+  await expect(page.locator("#task-open-count")).toHaveText("2");
+  expect(errors).toEqual([]);
+});
