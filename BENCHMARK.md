@@ -6,8 +6,9 @@
 
 - **Reactivity:** Latch versus Alpine.js, with the same number of static bound DOM nodes and one increment event.
 - **Server-style fragments:** Latch versus HTMX, requesting the same static 80-row HTML fragment from the same-origin server.
+- **Combined flow:** Latch alone versus HTMX + Alpine together, fetching a comparable interactive HTML fragment and applying three local state updates before measurement ends.
 
-HTMX has no built-in general-purpose Alpine-like local state, and Alpine is not a server-fragment transport library. A combined business-app benchmark is a separate future test.
+HTMX has no built-in general-purpose Alpine-like local state, and Alpine is not a server-fragment transport library. The combined flow tests one typical server-to-client interaction, but a complete business-app benchmark remains future work.
 
 ## Versions and source
 
@@ -33,6 +34,7 @@ Each runtime lives in its own iframe; its DOM and global listeners cannot influe
 - An iframe is an isolation boundary, not a perfect CPU isolator. Other tabs, browser scheduling, caching, garbage collection and extensions can influence results.
 - Request latency is affected by network quality and GitHub Pages caching. No backend processing is measured.
 - DOM-ready and `afterSwap` differ from end-to-end perceptual input-to-paint latency.
+- The combined workload uses two markup fixtures with identical structural elements but different `lt-*` versus `hx-*`/`x-*` directives. It measures time to a usable reactive interface, not application-wide feature parity.
 - Bundled script sizes do not capture the full application's styling, added plugins, page markup or server-side costs.
 - Load/parsing of the runtime itself is not part of the initialization measurement.
 - For high confidence, run at least 20 repetitions at several node counts, in different browsers, after hard refresh, and repeat the complete experiment several times.
@@ -52,7 +54,7 @@ Open `http://127.0.0.1:4180/benchmark.html`. Download the JSON with samples and 
 
 ## Automated baseline recording
 
-The GitHub pull-request CI runs a standard 250-binding, 20-update state benchmark and a 10-swap HTML benchmark in Chromium. Once both finish, it saves:
+The GitHub pull-request CI runs a standard 250-binding, 20-update state benchmark, a 10-swap HTML benchmark, and an 8-run combined HTTP + reactive state benchmark in Chromium. Once both finish, it saves:
 
 - `test-results/**/attachments/comparison-samples*`: Playwright attachment with raw samples, medians, P95 and pinned versions.
 - `_site/benchmark-metadata.json`: measured minified, gzip and Brotli distribution sizes.
