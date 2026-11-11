@@ -2,7 +2,7 @@ import { assignExpression, evaluateExpression, executeExpression } from "./evalu
 
 export interface ScopeBinding {
   el: HTMLElement;
-  kind: "show" | "if" | "text" | "html" | "class" | "bind" | "model" | "for";
+  kind: "show" | "if" | "text" | "html" | "class" | "bind" | "model" | "for" | "when";
   expression: string;
   arg?: string;
   /** Keyed repetition callback, owned by the directive installer. */
@@ -135,7 +135,8 @@ function applyBinding(scope: Scope, binding: ScopeBinding): void {
   const value = evaluateExpression<unknown>(binding.expression, scope.proxy);
 
   switch (binding.kind) {
-    case "for": {
+    case "for":
+    case "when": {
       binding.update?.(value);
       break;
     }
