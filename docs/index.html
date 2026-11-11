@@ -116,6 +116,15 @@
   &lt;/li&gt;
 &lt;/template&gt;</pre></details>
       </section>
+      <section class="panel top-space" lt-state="{detailsOpen:false}">
+        <div class="panel-head"><div><span class="kicker">Conditional DOM</span><h3>Real mounting, not just CSS visibility</h3><p>Toggle a fresh block of HTML with `lt-when`. Nested directives are initialized only when mounted.</p></div><span class="pill blue">lt-when</span></div>
+        <button class="btn btn-outline btn-small" id="conditional-demo-toggle" lt-click="detailsOpen = !detailsOpen">Toggle details</button>
+        <template lt-when="detailsOpen">
+          <div id="conditional-demo-content" class="callout">
+            <strong>Freshly mounted</strong><p>This element was created from a template and enhanced after insertion. Toggle again to remove the node.</p>
+          </div>
+        </template>
+      </section>
       <div class="section-title" id="components"><div><span class="kicker">03 / Native UI</span><h2>Common interface patterns, ready to use</h2><p>Dropdowns, tabs, accordions, modals, drawers and toasts with keyboard support.</p></div></div>
       <div class="two-columns">
         <section class="panel"><div class="panel-head"><div><h3>Tabs &amp; dropdown</h3><p>Composed with HTML attributes instead of custom JS controllers.</p></div><div class="menu" lt-dropdown><button class="btn btn-outline btn-small" lt-dropdown-trigger>Quick actions ▾</button><div lt-dropdown-menu><button lt-toast="Export prepared">Export data</button><button lt-modal="#help-dialog">Open help</button><button lt-toast="Settings saved">Save settings</button></div></div></div>
