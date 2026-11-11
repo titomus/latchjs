@@ -20,6 +20,38 @@ export interface Scope {
 
 const scopeByRoot = new WeakMap<HTMLElement, Scope>();
 
+// Coalesce assignments made in one declarative action into a single
+// synchronous DOM update. Synchronous rendering is kept for callers/tests.
+let actionDepth = 0;
+const dirtyScopes = new Set<Scope>();
+
+function notifyScope(scope: Scope): void {
+  if (actionDepth > 0) {
+    dirtyScopes.add(scope);
+  } else {
+    renderScope(scope);
+  }
+}
+
+function batchAction<T>(callback: () => T): T {
+  actionDepth++;
+  try {
+    return callback();
+  } finally {
+    actionDepth--;
+    if (actionDepth === 0) {
+      const pending = new Set(dirtyScopes);
+      dirtyScopes.clear();
+      for (const scope of pending) {
+        // A parent render already updates all its nested scopes.
+        let parent = scope.parent;
+        while (parent && !pending.has(parent)) parent = parent.parent;
+        if (!parent) renderScope(scope);
+      }
+    }
+  }
+}
+
 function findOwner(scope: Scope, key: string): Scope {
   if (Object.prototype.hasOwnProperty.call(scope.raw, key)) {
     return scope;
@@ -212,7 +244,7 @@ export function createScope(
     bindings: new Set<ScopeBinding>(),
     children: new Set<Scope>(),
     notify() {
-      renderScope(scope);
+      notifyScope(scope);
     }
   };
 
@@ -234,7 +266,15 @@ export function runInScope(
   expression: string,
   extras?: Record<string, unknown>
 ): unknown {
-  return executeExpression(expression, createRuntimeProxy(scope, extras));
+  return batchAction(() => {
+    try {
+      return executeExpression(expression, createRuntimeProxy(scope, extras));
+    } finally {
+      // Also handles nested mutations such as items.push(), which do not
+      // trigger a direct property write through the scope proxy.
+      scope.notify();
+    }
+  });
 }
 
 export function setModelValue(
@@ -243,8 +283,10 @@ export function setModelValue(
   value: unknown,
   extras?: Record<string, unknown>
 ): void {
-  assignExpression(expression, createRuntimeProxy(scope, extras), value);
-  scope.notify();
+  batchAction(() => {
+    assignExpression(expression, createRuntimeProxy(scope, extras), value);
+    scope.notify();
+  });
 }
 
 export function renderScope(scope: Scope): void {
