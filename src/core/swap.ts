@@ -27,7 +27,8 @@ export function applySwap(
 
   switch (mode) {
     case "innerHTML": {
-      (target as HTMLElement).innerHTML = html;
+      // Reuse the parsed fragment instead of parsing the same HTML twice.
+      target.replaceChildren(fragment);
       return Array.from(target.children);
     }
     case "outerHTML": {
@@ -41,12 +42,12 @@ export function applySwap(
     }
     case "afterbegin": {
       target.prepend(fragment);
-      inserted.push(...Array.from(target.children));
+      inserted.push(...elements);
       break;
     }
     case "beforeend": {
       target.append(fragment);
-      inserted.push(...Array.from(target.children));
+      inserted.push(...elements);
       break;
     }
     case "afterend": {
