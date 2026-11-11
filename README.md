@@ -348,7 +348,7 @@ Le tri et la pagination peuvent se trouver dans le fragment injecté : Latch dé
 
 ```html
 <div lt-state="{ sites: 3, annuel: false }">
-  <button type="button" lt-click="sites = Math.max(1, sites - 1)">−</button>
+  <button type="button" lt-click="sites = sites > 1 ? sites - 1 : 1">−</button>
   <strong lt-text="sites"></strong>
   <button type="button" lt-click="sites += 1">+</button>
 
