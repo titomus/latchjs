@@ -50,3 +50,22 @@ The static playground is in `docs/index.html`. Workflow `.github/workflows/pages
 ## Release gate
 
 Do not publish a v1 stable claim until all P0 security/correctness items are tested, the full suite passes, and benchmark methodology/results are reproducible.
+
+## Follow-up engineering pass (2026-11-11, PR #2)
+
+Implemented and covered by automated tests (subject to CI validation):
+- Expression compilation caching with a bounded 512-entry cache; the evaluator remains a developer-trusted JavaScript evaluator.
+- Single synchronous render for several state mutations within one declarative action.
+- Parent proxy reuse and stable state scopes across repeated scans or DOM moves.
+- Latest-wins GET requests and native data-table loads using AbortSignal plus response version checks.
+- Polling/global listeners/IntersectionObserver cleanup on detachment, with restoration on reattachment and explicit rescan.
+- Debounced auto-submit typing (250 ms default, overridable with `lt-debounce`), immediate select/change handling.
+- GitHub Pages microbenchmark for 100–2500 bindings and 20 state updates; **not** a comparative performance claim.
+- GitHub Actions PR quality gate with browser smoke test of the actual deployable artifact.
+
+### Unresolved release blockers
+
+- Strict CSP: `new Function` still requires `unsafe-eval`. A restricted CSP-compatible interpreter or static precompilation mode remains necessary.
+- HTML trust: `lt-html`, overlays, and server-rendered fragments require trusted sources and server-side sanitization. Add a Trusted Types-compatible insertion strategy and exploit-focused tests.
+- Fair external comparison: benchmark identical HTMX + Alpine workflows with the same DOM, network conditions, event patterns and bundle transfer settings.
+- Review overall accessibility, multi-overlay focus interactions and production memory profiles before calling this stable 1.0.
