@@ -219,6 +219,20 @@ function syncModel(el: HTMLElement, value: unknown): void {
   }
 }
 
+// Detach scopes without deleting their state: an element moved and scanned
+// again can keep its local data and inherit its new parent scope.
+export function relinkScope(scope: Scope, parent?: Scope): void {
+  if (scope.parent === parent) return;
+  scope.parent?.children.delete(scope);
+  scope.parent = parent;
+  parent?.children.add(scope);
+}
+
+export function detachScope(element: Element): void {
+  const scope = scopeByRoot.get(element as HTMLElement);
+  if (scope) relinkScope(scope, undefined);
+}
+
 export function getScope(el: HTMLElement | null): Scope | undefined {
   if (!el) {
     return undefined;
@@ -295,6 +309,11 @@ export function renderScope(scope: Scope): void {
   }
 
   for (const child of scope.children) {
+    if (!child.root.isConnected) {
+      // Detached scopes must not retain entire removed DOM subtrees.
+      relinkScope(child, undefined);
+      continue;
+    }
     renderScope(child);
   }
 }
