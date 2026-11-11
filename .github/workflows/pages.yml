@@ -28,6 +28,17 @@ jobs:
       - run: npm run build
       - run: npm install --no-save --no-package-lock --ignore-scripts alpinejs@3.17.5 htmx.org@2.0.11
       - run: npm run build:pages
+      - run: python3 scripts/package-downloads.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: latch-ready-to-use-${{ github.sha }}
+          path: |
+            _site/dist/latch.js
+            _site/dist/latch.min.js
+            _site/dist/latch.esm.js
+            _site/downloads/latch-latest.zip
+            _site/downloads/SHA256SUMS.txt
+          retention-days: 30
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

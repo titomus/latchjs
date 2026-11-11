@@ -58,9 +58,42 @@ Avec Latch, le **serveur produit toujours les données et les fragments HTML**, 
 
 **Règle pratique :** ce qui doit être sauvegardé ou partagé avec d'autres utilisateurs reste côté serveur. Ce qui est temporaire (champ actif, sélection d'onglet, compteur, affichage d'un panneau) peut rester dans `lt-state`.
 
+## Télécharger Latch.js sans npm
+
+**Aucune installation npm nécessaire pour utiliser Latch dans un site ou une application PHP.** Les fichiers JavaScript sont compilés automatiquement lors des publications GitHub Pages de la branche `main`.
+
+| Fichier prêt à utiliser | Usage | Téléchargement |
+| --- | --- | --- |
+| `latch.min.js` | **Recommandé en production**, version compacte pour le navigateur | [Télécharger latch.min.js](https://titomus.github.io/latchjs/dist/latch.min.js) |
+| `latch.js` | Version lisible pour examiner ou déboguer le code | [Télécharger latch.js](https://titomus.github.io/latchjs/dist/latch.js) |
+| `latch.esm.js` | Version ES module pour `import` | [Télécharger latch.esm.js](https://titomus.github.io/latchjs/dist/latch.esm.js) |
+| `latch-latest.zip` | **Tout télécharger d'un coup**, avec les trois versions | [Télécharger le ZIP](https://titomus.github.io/latchjs/downloads/latch-latest.zip) |
+
+[Page de téléchargement](https://titomus.github.io/latchjs/download.html) · [Empreintes SHA-256](https://titomus.github.io/latchjs/downloads/SHA256SUMS.txt) · [Historique des builds GitHub Actions](https://github.com/titomus/latchjs/actions/workflows/pages.yml)
+
+En pratique : téléchargez `latch.min.js`, copiez-le dans `public/assets/` puis ajoutez en bas de votre page :
+
+```html
+<script src="/assets/latch.min.js"></script>
+<script>Latch.start();</script>
+```
+
+Vous pouvez également charger directement la version publiée :
+
+```html
+<script src="https://titomus.github.io/latchjs/dist/latch.min.js"></script>
+<script>Latch.start();</script>
+```
+
+**Conseil pour une application en production :** préférez la copie locale, qui vous évite de subir une mise à jour automatique du fichier `latest`. Le site GitHub Pages diffuse les derniers fichiers construits après chaque publication réussie ; le ZIP et les sommes SHA-256 sont régénérés avec le même build. Pour conserver une version exacte dans la durée, archivez le fichier dans votre projet.
+
+### Pour contribuer ou modifier la bibliothèque
+
+Le développeur de Latch lui-même peut continuer à utiliser `npm ci` et `npm run build`. Ces commandes **ne sont pas nécessaires aux utilisateurs** qui intègrent uniquement le JavaScript compilé.
+
 ## Installation et premier essai
 
-### Construire la bibliothèque depuis le dépôt
+### Construire la bibliothèque depuis le dépôt (développement uniquement)
 
 Le projet est disponible sur GitHub. Pour travailler avec **la version de ce dépôt** sans supposer qu'un paquet npm public a été publié :
 
