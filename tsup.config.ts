@@ -17,7 +17,7 @@ export default defineConfig([
       };
     },
     footer: {
-      js: "if (typeof window !== 'undefined') { window.latch = window.Latch; }"
+      js: "if (typeof window !== 'undefined') { var runtime = window.Latch && window.Latch.Latch ? window.Latch.Latch : window.Latch; window.Latch = runtime; window.latch = runtime; }"
     }
   },
   {
@@ -37,7 +37,7 @@ export default defineConfig([
       };
     },
     footer: {
-      js: "if (typeof window !== 'undefined') { window.latch = window.Latch; }"
+      js: "if (typeof window !== 'undefined') { var runtime = window.Latch && window.Latch.Latch ? window.Latch.Latch : window.Latch; window.Latch = runtime; window.latch = runtime; }"
     }
   },
   {
