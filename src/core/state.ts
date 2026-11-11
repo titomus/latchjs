@@ -53,7 +53,9 @@ function createRuntimeProxy(scope: Scope, extras?: Record<string, unknown>): Rec
         }
 
         if (scope.parent) {
-          return createRuntimeProxy(scope.parent, extras)[key];
+          // The parent already has a stable proxy; recreating one on every
+          // inherited property read was especially costly in nested scopes.
+          return scope.parent.proxy[key];
         }
 
         return undefined;
