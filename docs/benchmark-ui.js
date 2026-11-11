@@ -6,6 +6,8 @@
   var frames={};
   document.querySelectorAll("iframe[data-engine]").forEach(function(el){frames[el.dataset.engine]=el;});
   var ready=new Set(),failures={},pending=new Map(),sequence=0,report={timestamp:null,environment:navigator.userAgent,tests:{}};
+  // Exposed read-only-by-convention for diagnostics and browser CI capture.
+  window.LatchBenchmarkReport=report;
   function get(id){return document.getElementById(id);}
   function escape(value){return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   function nextId(){sequence++;return "bench-"+sequence;}
