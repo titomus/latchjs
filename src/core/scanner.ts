@@ -1,6 +1,6 @@
 import type { DirectiveInstaller, LatchConfig, RequestOptions } from "../types";
 import { attributeName } from "./config";
-import { bindScope, createScope, getScope, runInScope, setModelValue } from "./state";
+import { bindScope, createScope, detachScope, getScope, relinkScope, runInScope, setModelValue } from "./state";
 import { handleResponse } from "./request";
 
 interface ScannerApp {
@@ -61,6 +61,7 @@ function observeDetachments(): void {
 }
 
 function detachExternal(element: Element): void {
+  detachScope(element);
   for (const binding of externalBindings.get(element as HTMLElement) ?? []) {
     binding.release?.();
     binding.release = undefined;
@@ -114,10 +115,10 @@ export function scanTree(app: ScannerApp, root: ParentNode): void {
   // Walking every descendant again made a full scan quadratic and could
   // initialize nested scopes against the wrong parent.
   if (root instanceof HTMLElement) {
-    walk(app, root, getScope(root));
+    walk(app, root, getScope(root.parentElement));
   } else {
     for (const child of Array.from(root.children)) {
-      if (child instanceof HTMLElement) walk(app, child, getScope(child));
+      if (child instanceof HTMLElement) walk(app, child, getScope(child.parentElement));
     }
   }
 
@@ -137,6 +138,10 @@ function walk(app: ScannerApp, el: HTMLElement, currentScope = getScope(el)): vo
           $store: app.stores
         })
       : currentScope;
+
+  if (initialized && stateExpression && scope?.root === el) {
+    relinkScope(scope, currentScope);
+  }
 
   if (!initialized) {
     initializeElement(app, el, scope);
