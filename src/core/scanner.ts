@@ -352,7 +352,7 @@ function initializeStateDirectives(
     const eventName = parts.shift();
     if (!eventName) continue;
     const modifiers = new Set(parts);
-    const milliseconds = parts.find((part) => /^\\d+ms$/.test(part));
+    const milliseconds = parts.find((part) => /^\d+ms$/.test(part));
     const debounceMs = modifiers.has("debounce") ? Math.max(0, Number(milliseconds?.slice(0, -2) ?? "250")) : 0;
     let timer: number | undefined;
     let fired = false;
