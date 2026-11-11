@@ -18,6 +18,12 @@
     <div class="table-wrap"><table class="results" aria-label="Swap benchmark results"><thead><tr><th>Runtime</th><th>Initialization</th><th>Median click → swap</th><th>P95 click → swap</th></tr></thead><tbody id="swap-result"><tr><td colspan="4" class="muted">Run the test to see measurements.</td></tr></tbody></table></div>
     <p class="footnote">HTTP measurements include network/cache scheduling and are inherently noisier. Both runtimes request exactly the same asset.</p>
   </section>
+  <section class="panel" style="margin-top:19px"><div class="panel-head"><div><span class="kicker">Experiment 03</span><h2>Full workflow: server HTML + local state</h2><p>Latch alone versus HTMX + Alpine together. The server returns an interactive fragment, then three client actions update reactive text.</p></div><span class="pill green">Combined parity</span></div>
+    <div class="controls"><label>Measured workflows<select id="combined-reps"><option value="3">3 (quick)</option><option value="8" selected>8</option><option value="15">15</option></select></label><button class="btn" id="run-combined" type="button">Run combined-workflow comparison →</button></div>
+    <div id="combined-status" class="status" role="status">Preparing isolated runtimes…</div>
+    <div class="table-wrap"><table class="results" aria-label="Combined workflow benchmark results"><thead><tr><th>Runtime</th><th>Initialization</th><th>Median workflow</th><th>P95 workflow</th></tr></thead><tbody id="combined-result"><tr><td colspan="4" class="muted">Run the comparison to see measured times.</td></tr></tbody></table></div>
+    <p class="footnote">Measures request, fragment insertion, readiness and three state updates. The two fragments have the same element structure but different directive attributes, so their byte sizes are not identical. This is a workflow benchmark, not universal framework parity.</p>
+  </section>
   <section class="two-columns" style="margin-top:19px">
     <article class="panel"><h3>Transferred JavaScript, compressed</h3><p class="subheading">Calculated from pinned distribution files at build time, not guessed from marketing pages.</p><div class="metrics" id="size-metrics"><div class="metric"><strong>…</strong><small>Loading measurements</small></div></div><p class="footnote">Full runtime bundles; not application code, CSS or optional plugins.</p></article>
     <article class="panel"><h3>Experiment details</h3><ul class="no-list" style="margin-top:13px"><li>✓ Independent same-origin iframe for each runtime</li><li>✓ 3 warm-up iterations (reactivity), 2 for swaps</li><li>✓ Same DOM workload and equal observation point</li><li>✓ Median and P95 with raw samples downloadable</li><li>✓ Pinned library releases and test fixture</li><li>◌ No cross-device or universal victory claim</li></ul><button id="download-results" type="button" class="btn btn-outline btn-small top-space">Download JSON results</button></article>
@@ -29,6 +35,7 @@
 <iframe title="Latch benchmark runtime" data-engine="latch" src="./bench/runner.html?engine=latch"></iframe>
 <iframe title="Alpine benchmark runtime" data-engine="alpine" src="./bench/runner.html?engine=alpine"></iframe>
 <iframe title="HTMX benchmark runtime" data-engine="htmx" src="./bench/runner.html?engine=htmx"></iframe>
+<iframe title="HTMX plus Alpine benchmark runtime" data-engine="combo" src="./bench/runner.html?engine=combo"></iframe>
 </div>
 <script src="./benchmark-ui.js"></script>
 </body></html>

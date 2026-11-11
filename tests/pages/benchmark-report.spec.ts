@@ -15,6 +15,10 @@ test("capture comparative runtime samples for CI artifact", async ({ page }, tes
   await page.locator("#run-swap").click();
   await expect(page.locator("#swap-status")).toContainText("Completed", { timeout: 60_000 });
 
+  await page.locator("#combined-reps").selectOption("8");
+  await page.locator("#run-combined").click();
+  await expect(page.locator("#combined-status")).toContainText("Completed", { timeout: 60_000 });
+
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.locator("#download-results").click()
@@ -32,6 +36,8 @@ test("capture comparative runtime samples for CI artifact", async ({ page }, tes
   expect(result.tests.state.libraries.alpine.samples).toHaveLength(20);
   expect(result.tests.swap.libraries.latch.samples).toHaveLength(10);
   expect(result.tests.swap.libraries.htmx.samples).toHaveLength(10);
+  expect(result.tests.combined.libraries.latch.samples).toHaveLength(8);
+  expect(result.tests.combined.libraries.combo.samples).toHaveLength(8);
 
   const summary = {
     state250: {
@@ -41,6 +47,10 @@ test("capture comparative runtime samples for CI artifact", async ({ page }, tes
     swap80: {
       latchMedianMs: result.tests.swap.libraries.latch.medianMs,
       htmxMedianMs: result.tests.swap.libraries.htmx.medianMs
+    },
+    combined: {
+      latchMedianMs: result.tests.combined.libraries.latch.medianMs,
+      htmxAlpineMedianMs: result.tests.combined.libraries.combo.medianMs
     }
   };
   console.log("LATCH_CI_BENCHMARK_SAMPLES", JSON.stringify(summary));

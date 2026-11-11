@@ -650,4 +650,48 @@ describe("Latch", () => {
     expect(document.querySelector("#unfinished")?.textContent).toBe("1");
   });
 
+  it("initializes a local scope once and does not rerun on rescan", async () => {
+    document.body.innerHTML = `
+      <div lt-state="{count:0}" lt-init="count += 5">
+        <strong id="init-value" lt-text="count"></strong>
+      </div>
+    `;
+    Latch.start();
+    await vi.waitFor(() => expect(document.querySelector("#init-value")?.textContent).toBe("5"));
+    Latch.scan(document.body);
+    expect(document.querySelector("#init-value")?.textContent).toBe("5");
+  });
+
+  it("supports event modifiers, local state and once-only semantics", () => {
+    document.body.innerHTML = `
+      <div lt-state="{count:0}">
+        <button id="event-once" lt-on:click.prevent.once="count += 1">Update</button>
+        <strong id="event-count" lt-text="count"></strong>
+      </div>
+    `;
+    Latch.start();
+    const button = document.querySelector("#event-once") as HTMLButtonElement;
+    const event = new Event("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    button.click();
+    expect(document.querySelector("#event-count")?.textContent).toBe("1");
+  });
+
+  it("debounces repeated lt-on:input events and updates local bindings", async () => {
+    document.body.innerHTML = `
+      <div lt-state="{query:''}">
+        <input id="debounced" lt-on:input.debounce.15ms="query = $el.value">
+        <span id="debounced-result" lt-text="query"></span>
+      </div>
+    `;
+    Latch.start();
+    const el = document.querySelector("#debounced") as HTMLInputElement;
+    el.value = "a";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.value = "hello";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => expect(document.querySelector("#debounced-result")?.textContent).toBe("hello"));
+  });
+
 });

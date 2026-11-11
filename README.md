@@ -56,6 +56,9 @@ The project now covers the original foundation plus the first orchestration, acc
 
 ### Local state
 
+- `lt-for` and `lt-key` for keyed reactive collections
+- `lt-init` for initial state setup
+- `lt-on:click.prevent`, `lt-on:input.debounce.250ms` and related event modifiers
 - `lt-state`
 - `lt-click`
 - `lt-show`
@@ -283,6 +286,7 @@ Latch.start();
 - **[HTMX + Alpine comparison lab](https://titomus.github.io/latchjs/benchmark.html)**: isolated, real runtime comparisons with raw measurements and download.
 - **[Minimal playground](https://titomus.github.io/latchjs/lab.html)**: the original quick demos and Latch-only microbenchmark.
 - [Technical audit and release blockers](AUDIT.md).
+- **[HTMX + Alpine functional parity matrix](PARITY.md)**: supported workflows, verified tests and remaining gaps.
 - Local examples are in `examples/`, including a plugin lab.
 
 GitHub Pages is static. The showcase uses a clearly marked **in-memory mock server**, but all Latch behavior, directives and DOM swaps are real. Data resets when the page reloads.

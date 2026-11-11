@@ -2,7 +2,7 @@
  * Each runtime executes in its own origin-checked iframe. */
 (function(){
   "use strict";
-  var names={latch:"Latch.js",alpine:"Alpine.js",htmx:"HTMX"};
+  var names={latch:"Latch.js",alpine:"Alpine.js",htmx:"HTMX",combo:"HTMX + Alpine"};
   var frames={};
   document.querySelectorAll("iframe[data-engine]").forEach(function(el){frames[el.dataset.engine]=el;});
   var ready=new Set(),failures={},pending=new Map(),sequence=0,report={timestamp:null,environment:navigator.userAgent,tests:{}};
@@ -19,9 +19,10 @@
     if(!frame||event.source!==frame.contentWindow)return;
     if("ready" in data){
       if(data.ready)ready.add(data.engine);else failures[data.engine]=data.error||"Runtime failed to load";
-      if(ready.size===3){
+      if(ready.size===4){
         if(get("state-status").textContent.includes("Preparing"))get("state-status").textContent="Ready. Choose a workload and run it.";
         if(get("swap-status").textContent.includes("Preparing"))get("swap-status").textContent="Ready. Compare matching HTML responses.";
+        if(get("combined-status").textContent.includes("Preparing"))get("combined-status").textContent="Ready. Compare the complete interaction flow.";
       }
       return;
     }
@@ -52,13 +53,13 @@
     return '<tr><td><strong>'+escape(names[engine])+'</strong></td><td>'+data.initMs.toFixed(2)+' ms</td><td>'+data.medianMs.toFixed(2)+' ms</td><td>'+data.p95Ms.toFixed(2)+' ms</td></tr>';
   }
   async function runPair(task){
-    var isState=task==="state",suffix=isState?"state":"swap";
+    var isState=task==="state",isCombined=task==="combined",suffix=isState?"state":isCombined?"combined":"swap";
     var btn=get("run-"+suffix),status=get(suffix+"-status");
-    var left="latch",right=isState?"alpine":"htmx";
+    var left="latch",right=isState?"alpine":isCombined?"combo":"htmx";
     var options=isState?{
       rows:Number(get("state-rows").value),
       iterations:Number(get("state-reps").value)
-    }:{iterations:Number(get("swap-reps").value)};
+    }:{iterations:Number(get((isCombined?"combined":"swap")+"-reps").value)};
     btn.disabled=true;
     status.textContent="Starting "+names[left]+" and "+names[right]+"…";
     try{
@@ -77,6 +78,7 @@
   }
   get("run-state").addEventListener("click",function(){void runPair("state");});
   get("run-swap").addEventListener("click",function(){void runPair("swap");});
+  get("run-combined").addEventListener("click",function(){void runPair("combined");});
   get("download-results").addEventListener("click",function(){
     var blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json"});
     var url=URL.createObjectURL(blob),a=document.createElement("a");
