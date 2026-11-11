@@ -18,5 +18,10 @@ test("comparison lab runs pinned Alpine and HTMX workloads and shows actual resu
   await expect(page.locator("#swap-result")).toContainText("HTMX", { timeout: 60_000 });
   await expect(page.locator("#swap-result")).toContainText("Latch.js");
   await expect(page.locator("#swap-status")).toContainText("Completed");
+  await page.locator("#combined-reps").selectOption("3");
+  await page.getByRole("button", { name: /Run combined-workflow comparison/ }).click();
+  await expect(page.locator("#combined-result")).toContainText("HTMX + Alpine", { timeout: 60_000 });
+  await expect(page.locator("#combined-result")).toContainText("Latch.js");
+  await expect(page.locator("#combined-status")).toContainText("Completed");
   expect(errors).toEqual([]);
 });
