@@ -76,3 +76,12 @@ test("showcase: keyed tasks can be added, reordered, toggled and removed", async
   await expect(page.locator("#task-open-count")).toHaveText("2");
   expect(errors).toEqual([]);
 });
+
+test("showcase: conditional DOM mounts and unmounts, not merely hidden", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#conditional-demo-content")).toHaveCount(0);
+  await page.locator("#conditional-demo-toggle").click();
+  await expect(page.locator("#conditional-demo-content")).toBeVisible();
+  await page.locator("#conditional-demo-toggle").click();
+  await expect(page.locator("#conditional-demo-content")).toHaveCount(0);
+});

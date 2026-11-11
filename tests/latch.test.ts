@@ -694,4 +694,30 @@ describe("Latch", () => {
     await vi.waitFor(() => expect(document.querySelector("#debounced-result")?.textContent).toBe("hello"));
   });
 
+  it("mounts and unmounts a real DOM subtree using lt-when", () => {
+    document.body.innerHTML = `
+      <section lt-state="{open:false, count:0}">
+        <button id="conditional-toggle" lt-click="open = !open">Toggle</button>
+        <template lt-when="open">
+          <div id="conditional-content">
+            <button id="conditional-add" lt-click="count += 1">Add</button>
+            <span id="conditional-count" lt-text="count"></span>
+          </div>
+        </template>
+      </section>
+    `;
+    Latch.start();
+    expect(document.querySelector("#conditional-content")).toBeNull();
+    (document.querySelector("#conditional-toggle") as HTMLButtonElement).click();
+    expect(document.querySelector("#conditional-content")).not.toBeNull();
+    (document.querySelector("#conditional-add") as HTMLButtonElement).click();
+    expect(document.querySelector("#conditional-count")?.textContent).toBe("1");
+    const original = document.querySelector("#conditional-content");
+    (document.querySelector("#conditional-toggle") as HTMLButtonElement).click();
+    expect(document.querySelector("#conditional-content")).toBeNull();
+    (document.querySelector("#conditional-toggle") as HTMLButtonElement).click();
+    expect(document.querySelector("#conditional-count")?.textContent).toBe("1");
+    expect(document.querySelector("#conditional-content")).not.toBe(original);
+  });
+
 });

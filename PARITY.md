@@ -18,7 +18,7 @@ The goal is to cover the tasks that normally make a PHP/HTML developer install *
 | Server-triggered refresh and custom events | `lt-refresh-on`, response headers | Unit + browser |
 | Tabs, accordions, dropdown, overlays and notifications | Native primitives | Unit + browser |
 | Custom directives and stores | Plugin API | Unit + e2e |
-| Native conditional DOM mounting (`x-if` style) | `lt-if` currently toggles visibility, **not** mount/unmount | Gap |
+| Native conditional DOM mounting (`x-if` style) | `<template lt-when="open">` mounts/unmounts its subtree; legacy `lt-if` remains visibility-only | Unit + browser |
 | Transition/animation directives | No direct `x-transition` equivalent | Gap |
 | Strict CSP without `unsafe-eval` | Current expression evaluator uses `new Function` | Gap |
 | Advanced Alpine features (teleport, morph, interceptors, persist plugins) | No feature-for-feature guarantee | Gap |
@@ -42,7 +42,7 @@ That does **not** imply that Latch is faster in every workload, CSP-compatible, 
 ## Next acceptance gates
 
 1. Strengthen CSP and HTML trust boundaries.
-2. Add native conditional mounting and basic transitions.
+2. Add basic transitions and extend conditional/keyed list edge-case coverage.
 3. Run integrated PHP CRUD workloads on several browser/device profiles.
 4. Measure retained memory and cleanup over hundreds of DOM swaps.
 5. Pin explicit release versions and document safe migration from HTMX/Alpine.

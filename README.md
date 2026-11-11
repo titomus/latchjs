@@ -57,6 +57,7 @@ The project now covers the original foundation plus the first orchestration, acc
 ### Local state
 
 - `lt-for` and `lt-key` for keyed reactive collections
+- `lt-when` for mount/unmount conditional templates; unlike `lt-if`, this creates/removes real nodes
 - `lt-init` for initial state setup
 - `lt-on:click.prevent`, `lt-on:input.debounce.250ms` and related event modifiers
 - `lt-state`
