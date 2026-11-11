@@ -19,6 +19,7 @@
     "build": "tsup --config tsup.config.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:pages": "playwright test --config=playwright.pages.config.ts",
     "test:all": "npm test && npm run test:e2e",
     "dev": "vite --host",
     "dev:examples": "vite --host",
